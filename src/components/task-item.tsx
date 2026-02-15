@@ -82,6 +82,7 @@ export function TaskItem({ task }: TaskItemProps) {
   const [retrying, setRetrying] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  const [descExpanded, setDescExpanded] = useState(false);
   const hasImpl = !!(task.prUrl || task.summary || task.changedFiles?.length);
 
   const handleStart = async () => {
@@ -161,9 +162,14 @@ export function TaskItem({ task }: TaskItemProps) {
         </div>
 
         {task.description && (
-          <p className="mt-1 line-clamp-2 text-xs text-stone-500">
-            {task.description}
-          </p>
+          <button
+            onClick={() => setDescExpanded(!descExpanded)}
+            className="mt-1 text-left w-full"
+          >
+            <p className={`text-xs text-stone-500 ${descExpanded ? "" : "line-clamp-2"}`}>
+              {task.description}
+            </p>
+          </button>
         )}
 
         <div className="mt-2 flex flex-wrap items-center gap-2">
