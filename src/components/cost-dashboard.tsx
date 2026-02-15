@@ -29,21 +29,21 @@ const STATUS_SUMMARY: {
   icon: React.ElementType;
   color: string;
 }[] = [
-  { key: "queued", label: "待機", icon: Clock, color: "text-zinc-400" },
+  { key: "queued", label: "待機", icon: Clock, color: "text-stone-400" },
   {
     key: "in_progress",
     label: "実装中",
     icon: Loader2,
-    color: "text-amber-400",
+    color: "text-amber-500",
   },
   {
     key: "review",
     label: "レビュー",
     icon: GitPullRequest,
-    color: "text-blue-400",
+    color: "text-blue-500",
   },
-  { key: "done", label: "完了", icon: CircleCheck, color: "text-emerald-400" },
-  { key: "failed", label: "失敗", icon: CircleX, color: "text-red-400" },
+  { key: "done", label: "完了", icon: CircleCheck, color: "text-emerald-500" },
+  { key: "failed", label: "失敗", icon: CircleX, color: "text-red-500" },
 ];
 
 interface ChartData {
@@ -95,7 +95,7 @@ export function CostDashboard() {
   return (
     <div className="space-y-4">
       {/* Summary row */}
-      <div className="flex flex-wrap items-center gap-4 rounded-lg border border-zinc-800 bg-zinc-900/50 px-4 py-3">
+      <div className="flex flex-wrap items-center gap-4 rounded-lg border border-stone-200 bg-white px-4 py-3 shadow-sm">
         {statusCounts.map((s) => {
           const Icon = s.icon;
           return (
@@ -105,9 +105,9 @@ export function CostDashboard() {
                   s.key === "in_progress" ? "animate-spin" : ""
                 }`}
               />
-              <span className="text-xs text-zinc-400">
+              <span className="text-xs text-stone-500">
                 {s.label}{" "}
-                <span className="font-mono font-semibold text-zinc-200">
+                <span className="font-mono font-semibold text-stone-800">
                   {s.count}
                 </span>
               </span>
@@ -116,24 +116,24 @@ export function CostDashboard() {
         })}
 
         {statusCounts.length > 0 && (
-          <div className="h-4 w-px bg-zinc-700" />
+          <div className="h-4 w-px bg-stone-200" />
         )}
 
         <div className="flex items-center gap-1.5">
-          <DollarSign className="h-3.5 w-3.5 text-emerald-400" />
-          <span className="text-xs text-zinc-400">
+          <DollarSign className="h-3.5 w-3.5 text-emerald-500" />
+          <span className="text-xs text-stone-500">
             API{" "}
-            <span className="font-mono font-semibold text-emerald-300">
+            <span className="font-mono font-semibold text-emerald-700">
               ${totalCost.toFixed(2)}
             </span>
           </span>
         </div>
 
         <div className="flex items-center gap-1.5">
-          <Activity className="h-3.5 w-3.5 text-cyan-400" />
-          <span className="text-xs text-zinc-400">
+          <Activity className="h-3.5 w-3.5 text-[#c35a2c]" />
+          <span className="text-xs text-stone-500">
             実行{" "}
-            <span className="font-mono font-semibold text-cyan-300">
+            <span className="font-mono font-semibold text-[#c35a2c]">
               {totalExecutions}
             </span>
             回
@@ -143,14 +143,14 @@ export function CostDashboard() {
 
       {/* Chart */}
       {chartData.length > 0 ? (
-        <div className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
-          <div className="mb-3 flex items-center gap-4 text-xs text-zinc-500">
+        <div className="rounded-lg border border-stone-200 bg-white p-4 shadow-sm">
+          <div className="mb-3 flex items-center gap-4 text-xs text-stone-400">
             <span className="flex items-center gap-1.5">
-              <span className="inline-block h-2.5 w-2.5 rounded-sm bg-emerald-500" />
+              <span className="inline-block h-2.5 w-2.5 rounded-sm bg-[#c35a2c]" />
               APIコスト ($)
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="inline-block h-0.5 w-4 bg-cyan-400" />
+              <span className="inline-block h-0.5 w-4 bg-[#6b83b0]" />
               実行回数
             </span>
           </div>
@@ -158,19 +158,19 @@ export function CostDashboard() {
             <ComposedChart data={chartData}>
               <CartesianGrid
                 strokeDasharray="3 3"
-                stroke="#27272a"
+                stroke="#e5ddd3"
                 vertical={false}
               />
               <XAxis
                 dataKey="date"
-                tick={{ fill: "#71717a", fontSize: 11 }}
-                axisLine={{ stroke: "#3f3f46" }}
+                tick={{ fill: "#8a857d", fontSize: 11 }}
+                axisLine={{ stroke: "#e5ddd3" }}
                 tickLine={false}
               />
               <YAxis
                 yAxisId="cost"
                 orientation="left"
-                tick={{ fill: "#6ee7b7", fontSize: 11 }}
+                tick={{ fill: "#c35a2c", fontSize: 11 }}
                 axisLine={false}
                 tickLine={false}
                 tickFormatter={(v: number) => `$${v}`}
@@ -178,19 +178,19 @@ export function CostDashboard() {
               <YAxis
                 yAxisId="count"
                 orientation="right"
-                tick={{ fill: "#67e8f9", fontSize: 11 }}
+                tick={{ fill: "#6b83b0", fontSize: 11 }}
                 axisLine={false}
                 tickLine={false}
                 allowDecimals={false}
               />
               <Tooltip
                 contentStyle={{
-                  backgroundColor: "#18181b",
-                  border: "1px solid #3f3f46",
+                  backgroundColor: "#ffffff",
+                  border: "1px solid #e5ddd3",
                   borderRadius: "8px",
                   fontSize: "12px",
                 }}
-                labelStyle={{ color: "#a1a1aa" }}
+                labelStyle={{ color: "#8a857d" }}
                 formatter={(value, name) => {
                   const v = Number(value ?? 0);
                   if (name === "cost") return [`$${v.toFixed(2)}`, "APIコスト"];
@@ -200,7 +200,7 @@ export function CostDashboard() {
               <Bar
                 yAxisId="cost"
                 dataKey="cost"
-                fill="#10b981"
+                fill="#c35a2c"
                 radius={[4, 4, 0, 0]}
                 opacity={0.8}
                 maxBarSize={40}
@@ -209,15 +209,15 @@ export function CostDashboard() {
                 yAxisId="count"
                 type="monotone"
                 dataKey="count"
-                stroke="#22d3ee"
+                stroke="#6b83b0"
                 strokeWidth={2}
-                dot={{ fill: "#22d3ee", r: 3 }}
+                dot={{ fill: "#6b83b0", r: 3 }}
               />
             </ComposedChart>
           </ResponsiveContainer>
         </div>
       ) : (
-        <div className="flex items-center justify-center rounded-lg border border-zinc-800 bg-zinc-900/50 py-12 text-zinc-600">
+        <div className="flex items-center justify-center rounded-lg border border-stone-200 bg-white py-12 text-stone-400 shadow-sm">
           <p className="text-sm">タスクが追加されるとグラフが表示されます</p>
         </div>
       )}

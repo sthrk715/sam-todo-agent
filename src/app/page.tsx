@@ -20,14 +20,14 @@ export default function Home() {
       <header className="mb-10">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-cyan-950/50 shadow-[0_0_20px_rgba(0,240,255,0.1)]">
-              <Bot className="h-5 w-5 text-cyan-400" />
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#c35a2c]/10">
+              <Bot className="h-5 w-5 text-[#c35a2c]" />
             </div>
             <div>
-              <h1 className="text-xl font-bold tracking-tight text-zinc-100">
+              <h1 className="text-xl font-bold tracking-tight text-stone-900">
                 Sam TODO Agent
               </h1>
-              <p className="text-xs text-zinc-500">
+              <p className="text-xs text-stone-500">
                 タスクを追加するだけで、AIが実装を完了させる
               </p>
             </div>
@@ -39,8 +39,8 @@ export default function Home() {
       <div className="grid gap-8 lg:grid-cols-[360px_1fr]">
         {/* Left: Form */}
         <aside className="lg:sticky lg:top-8 lg:self-start">
-          <div className="rounded-xl border border-zinc-800 bg-[#111111] p-6">
-            <h2 className="mb-4 text-sm font-semibold text-zinc-300">
+          <div className="rounded-xl border border-stone-200 bg-white p-6 shadow-sm">
+            <h2 className="mb-4 text-sm font-semibold text-stone-700">
               新しいタスク
             </h2>
             <TaskForm />

@@ -22,8 +22,8 @@ export function TaskList() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <h2 className="text-lg font-semibold text-zinc-100">タスク一覧</h2>
-          <span className="rounded-full bg-cyan-950/50 px-2 py-0.5 text-xs text-cyan-400 font-mono">
+          <h2 className="text-lg font-semibold text-stone-900">タスク一覧</h2>
+          <span className="rounded-full bg-[#c35a2c]/10 px-2 py-0.5 text-xs text-[#c35a2c] font-mono">
             {activeTasks.length} active
           </span>
         </div>
@@ -32,7 +32,7 @@ export function TaskList() {
           size="sm"
           onClick={() => syncTasks()}
           disabled={syncing}
-          className="text-zinc-400 hover:text-cyan-400"
+          className="text-stone-500 hover:text-[#c35a2c]"
         >
           {syncing ? (
             <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
@@ -44,13 +44,13 @@ export function TaskList() {
       </div>
 
       {error && (
-        <div className="rounded-lg border border-red-900/50 bg-red-950/30 p-3 text-sm text-red-400">
+        <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
           {error}
         </div>
       )}
 
       {tasks.length === 0 && !syncing && (
-        <div className="flex flex-col items-center justify-center py-16 text-zinc-600">
+        <div className="flex flex-col items-center justify-center py-16 text-stone-400">
           <Inbox className="mb-3 h-10 w-10" />
           <p className="text-sm">タスクがありません</p>
           <p className="text-xs">左のフォームからタスクを追加してください</p>
@@ -59,7 +59,7 @@ export function TaskList() {
 
       {tasks.length === 0 && syncing && (
         <div className="flex items-center justify-center py-16">
-          <Loader2 className="h-6 w-6 animate-spin text-cyan-500" />
+          <Loader2 className="h-6 w-6 animate-spin text-[#c35a2c]" />
         </div>
       )}
 
@@ -72,11 +72,11 @@ export function TaskList() {
       {doneTasks.length > 0 && (
         <>
           <div className="flex items-center gap-2 pt-2">
-            <div className="h-px flex-1 bg-zinc-800" />
-            <span className="text-xs text-zinc-600">
+            <div className="h-px flex-1 bg-stone-200" />
+            <span className="text-xs text-stone-400">
               完了 ({doneTasks.length})
             </span>
-            <div className="h-px flex-1 bg-zinc-800" />
+            <div className="h-px flex-1 bg-stone-200" />
           </div>
           <div className="space-y-2">
             {doneTasks.map((task) => (

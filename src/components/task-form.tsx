@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Loader2 } from "lucide-react";
+import { Plus, Loader2, Lock, Globe } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -29,7 +29,7 @@ export function TaskForm() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [label, setLabel] = useState("");
-  const { addTask, loading, selectedRepo } = useTaskStore();
+  const { addTask, loading, repos, selectedRepo, setSelectedRepo } = useTaskStore();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -54,8 +54,37 @@ export function TaskForm() {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="space-y-2">
-        <Label htmlFor="title" className="text-zinc-300">
-          タイトル <span className="text-cyan-400">*</span>
+        <Label className="text-stone-600">
+          対象リポジトリ <span className="text-[#c35a2c]">*</span>
+        </Label>
+        <Select value={selectedRepo} onValueChange={setSelectedRepo}>
+          <SelectTrigger className="border-stone-200 bg-stone-50 text-stone-900 focus:ring-[#c35a2c]/30">
+            <SelectValue placeholder="リポジトリを選択" />
+          </SelectTrigger>
+          <SelectContent className="border-stone-200 bg-white">
+            {repos.map((repo) => (
+              <SelectItem
+                key={repo.name}
+                value={repo.name}
+                className="text-stone-900 focus:bg-[#c35a2c]/5 focus:text-[#c35a2c]"
+              >
+                <span className="flex items-center gap-1.5">
+                  {repo.private ? (
+                    <Lock className="h-3 w-3 text-stone-400" />
+                  ) : (
+                    <Globe className="h-3 w-3 text-stone-400" />
+                  )}
+                  {repo.name}
+                </span>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="title" className="text-stone-600">
+          タイトル <span className="text-[#c35a2c]">*</span>
         </Label>
         <Input
           id="title"
@@ -63,12 +92,12 @@ export function TaskForm() {
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           required
-          className="border-zinc-800 bg-zinc-900/50 text-zinc-100 placeholder:text-zinc-600 focus-visible:ring-cyan-500/50"
+          className="border-stone-200 bg-stone-50 text-stone-900 placeholder:text-stone-400 focus-visible:ring-[#c35a2c]/30"
         />
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="description" className="text-zinc-300">
+        <Label htmlFor="description" className="text-stone-600">
           説明
         </Label>
         <Textarea
@@ -77,42 +106,42 @@ export function TaskForm() {
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           rows={3}
-          className="border-zinc-800 bg-zinc-900/50 text-zinc-100 placeholder:text-zinc-600 focus-visible:ring-cyan-500/50 resize-none"
+          className="border-stone-200 bg-stone-50 text-stone-900 placeholder:text-stone-400 focus-visible:ring-[#c35a2c]/30 resize-none"
         />
       </div>
 
       <div className="space-y-2">
-        <Label className="text-zinc-300">ラベル</Label>
+        <Label className="text-stone-600">ラベル</Label>
         <Select value={label} onValueChange={setLabel}>
-          <SelectTrigger className="border-zinc-800 bg-zinc-900/50 text-zinc-100 focus:ring-cyan-500/50">
+          <SelectTrigger className="border-stone-200 bg-stone-50 text-stone-900 focus:ring-[#c35a2c]/30">
             <SelectValue placeholder="タスクの種類を選択" />
           </SelectTrigger>
-          <SelectContent className="border-zinc-800 bg-zinc-900">
+          <SelectContent className="border-stone-200 bg-white">
             {LABEL_OPTIONS.map((opt) => (
               <SelectItem
                 key={opt.value}
                 value={opt.value}
-                className="text-zinc-100 focus:bg-cyan-950/50 focus:text-cyan-400"
+                className="text-stone-900 focus:bg-[#c35a2c]/5 focus:text-[#c35a2c]"
               >
                 {opt.label}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
-        <ul className="space-y-1 text-[11px] text-zinc-600">
-          <li><span className="text-zinc-400">feature</span> — 新しい画面や機能を追加したいとき</li>
-          <li><span className="text-zinc-400">bug</span> — 既存の不具合を直したいとき</li>
-          <li><span className="text-zinc-400">refactor</span> — 動作は変えずコードを整理したいとき</li>
-          <li><span className="text-zinc-400">docs</span> — READMEや説明文を書きたいとき</li>
-          <li><span className="text-zinc-400">test</span> — テストコードを追加したいとき</li>
-          <li><span className="text-zinc-400">chore</span> — 設定変更や依存関係の更新など</li>
+        <ul className="space-y-1 text-[11px] text-stone-400">
+          <li><span className="text-stone-600">feature</span> — 新しい画面や機能を追加したいとき</li>
+          <li><span className="text-stone-600">bug</span> — 既存の不具合を直したいとき</li>
+          <li><span className="text-stone-600">refactor</span> — 動作は変えずコードを整理したいとき</li>
+          <li><span className="text-stone-600">docs</span> — READMEや説明文を書きたいとき</li>
+          <li><span className="text-stone-600">test</span> — テストコードを追加したいとき</li>
+          <li><span className="text-stone-600">chore</span> — 設定変更や依存関係の更新など</li>
         </ul>
       </div>
 
       <Button
         type="submit"
         disabled={loading || !title.trim() || !selectedRepo}
-        className="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-medium transition-all duration-200 shadow-[0_0_20px_rgba(0,240,255,0.15)] hover:shadow-[0_0_30px_rgba(0,240,255,0.3)]"
+        className="w-full bg-[#c35a2c] hover:bg-[#a84d26] text-white font-medium transition-all duration-200"
       >
         {loading ? (
           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
