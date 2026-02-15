@@ -17,6 +17,7 @@ export interface Task {
   prUrl?: string;
   summary?: string;
   changedFiles?: string[];
+  implDescription?: string;
 }
 
 export interface CreateTaskInput {

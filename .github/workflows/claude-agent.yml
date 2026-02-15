@@ -115,7 +115,13 @@ jobs:
           - X_API_KEY, X_API_SECRET (API Key / Secret)
           - X_ACCESS_TOKEN, X_ACCESS_SECRET (Access Token / Secret)
           X/Twitter連携機能の実装や、ポスト投稿が必要な場合に使用してください。
-          OAuth 1.0a (HMAC-SHA1) で認証し、X API v2 エンドポイントを使用してください。"
+          OAuth 1.0a (HMAC-SHA1) で認証し、X API v2 エンドポイントを使用してください。
+
+          ## 最後の出力
+          実装が完了したら、最後に以下の形式で実装内容のサマリを出力してください:
+          ---IMPL_SUMMARY_START---
+          ここに実装内容の要約を日本語で記述（3-5行程度）
+          ---IMPL_SUMMARY_END---"
 
           echo "::group::Prompt"
           echo "$PROMPT"
@@ -133,6 +139,21 @@ jobs:
 
           if [ "$CLAUDE_EXIT" -ne 0 ]; then
             echo "::warning::Claude Code exited with code $CLAUDE_EXIT"
+          fi
+
+          # 出力から実装サマリを抽出
+          if [ -f /tmp/claude-output.json ]; then
+            IMPL_DESC=$(cat /tmp/claude-output.json | jq -r '.result // .content // ""' 2>/dev/null | \
+              sed -n '/---IMPL_SUMMARY_START---/,/---IMPL_SUMMARY_END---/p' | \
+              grep -v '---IMPL_SUMMARY' || echo "")
+            if [ -n "$IMPL_DESC" ]; then
+              # Base64エンコードして保存
+              IMPL_DESC_B64=$(echo "$IMPL_DESC" | base64 -w 0 2>/dev/null || echo "$IMPL_DESC" | base64)
+              echo "IMPL_DESCRIPTION=$IMPL_DESC_B64" >> "$GITHUB_ENV"
+              echo "::group::Implementation Summary"
+              echo "$IMPL_DESC"
+              echo "::endgroup::"
+            fi
           fi
 
       # 6.5. Admin APIでコスト取得
@@ -256,6 +277,7 @@ jobs:
             const prUrl = '${{ steps.pr.outputs.pr_url }}' || '';
             const diffStat = process.env.DIFF_STAT || '';
             const changedFiles = process.env.CHANGED_FILES || '';
+            const implDescription = process.env.IMPL_DESCRIPTION || '';
 
             const { data: issue } = await github.rest.issues.get({ owner, repo, issue_number });
             let body = issue.body || '';
@@ -266,6 +288,7 @@ jobs:
               'pr-url': prUrl,
               'impl-summary': diffStat,
               'impl-files': changedFiles,
+              'impl-description': implDescription,
             };
             for (const [key, value] of Object.entries(meta)) {
               if (!value || value === 'unknown') continue;
