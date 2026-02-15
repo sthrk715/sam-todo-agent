@@ -120,20 +120,20 @@ export function CostDashboard() {
         )}
 
         <div className="flex items-center gap-1.5">
-          <DollarSign className="h-3.5 w-3.5 text-emerald-500" />
+          <DollarSign className="h-3.5 w-3.5 text-[#c35a2c]" />
           <span className="text-xs text-stone-500">
             API{" "}
-            <span className="font-mono font-semibold text-emerald-700">
+            <span className="font-mono font-semibold text-[#c35a2c]">
               ${totalCost.toFixed(2)}
             </span>
           </span>
         </div>
 
         <div className="flex items-center gap-1.5">
-          <Activity className="h-3.5 w-3.5 text-[#c35a2c]" />
+          <Activity className="h-3.5 w-3.5 text-[#6b83b0]" />
           <span className="text-xs text-stone-500">
             実行{" "}
-            <span className="font-mono font-semibold text-[#c35a2c]">
+            <span className="font-mono font-semibold text-[#6b83b0]">
               {totalExecutions}
             </span>
             回
