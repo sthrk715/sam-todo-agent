@@ -76,11 +76,18 @@ jobs:
           ISSUE_TITLE: ${{ github.event.issue.title }}
           ISSUE_BODY: ${{ github.event.issue.body }}
         run: |
+          echo "::group::Debug Info"
+          echo "ANTHROPIC_API_KEY set: $([ -n "$ANTHROPIC_API_KEY" ] && echo 'YES' || echo 'NO')"
+          echo "Claude version: $(claude --version 2>&1 || echo 'NOT FOUND')"
+          echo "Issue #${ISSUE_NUMBER}"
+          echo "Working directory: $(pwd)"
+          ls -la
+          echo "::endgroup::"
+
           CLEAN_TITLE=$(echo "$ISSUE_TITLE" | sed 's/^\[.*\] //')
           CLEAN_BODY=$(echo "$ISSUE_BODY" | sed 's/<!-- target-repo: [^ ]* -->//')
 
-          claude -p --dangerously-skip-permissions --output-format stream-json "$(cat <<EOF
-          あなたはコーディングエージェントです。以下のIssueを実装してください。
+          PROMPT="あなたはコーディングエージェントです。以下のIssueを実装してください。
           質問せずに自分で判断して実装を完了させてください。
 
           ## Issue #${ISSUE_NUMBER}
@@ -90,14 +97,30 @@ jobs:
           ## 指示
           - このリポジトリのコードを分析し、Issueの内容を実装してください
           - 必要なファイルを作成・修正してください
-          - 不明点があっても推測して実装を進めてください
-          EOF
-          )" > /tmp/claude-output.jsonl 2>&1 || true
+          - 不明点があっても推測して実装を進めてください"
+
+          echo "::group::Prompt"
+          echo "$PROMPT"
+          echo "::endgroup::"
+
+          set +e
+          claude -p --dangerously-skip-permissions --output-format stream-json "$PROMPT" \
+            > /tmp/claude-output.jsonl
+          CLAUDE_EXIT=$?
+          set -e
+
+          echo "::group::Claude Output (exit code: $CLAUDE_EXIT)"
+          cat /tmp/claude-output.jsonl 2>/dev/null || echo "(no output file)"
+          echo "::endgroup::"
+
+          if [ "$CLAUDE_EXIT" -ne 0 ]; then
+            echo "::warning::Claude Code exited with code $CLAUDE_EXIT"
+          fi
 
           # コスト情報を抽出（stream-json の result メッセージから）
-          COST=$(cat /tmp/claude-output.jsonl | grep -oP '"cost_usd"\s*:\s*\K[\d.]+' | tail -1 || echo "")
+          COST=$(grep -oP '"cost_usd"\s*:\s*\K[\d.]+' /tmp/claude-output.jsonl 2>/dev/null | tail -1 || echo "")
           if [ -z "$COST" ]; then
-            COST=$(cat /tmp/claude-output.jsonl | grep -oP '"total_cost"\s*:\s*\K[\d.]+' | tail -1 || echo "")
+            COST=$(grep -oP '"total_cost"\s*:\s*\K[\d.]+' /tmp/claude-output.jsonl 2>/dev/null | tail -1 || echo "")
           fi
           echo "API_COST=${COST:-unknown}" >> "$GITHUB_ENV"
           echo "Extracted cost: ${COST:-unknown}"
