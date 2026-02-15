@@ -113,6 +113,51 @@ export async function deleteIssue(issueNumber: number): Promise<void> {
   });
 }
 
+export async function retryFailedTask(issueNumber: number): Promise<void> {
+  const octokit = getOctokit();
+  const { owner } = getConfig();
+
+  // Remove failed label and reopen issue if closed
+  const { data: issue } = await octokit.rest.issues.get({
+    owner,
+    repo: HUB_REPO,
+    issue_number: issueNumber,
+  });
+
+  // Remove status labels
+  const labelsToRemove = ["status:failed", "status:in-progress", "status:review"];
+  for (const label of labelsToRemove) {
+    try {
+      await octokit.rest.issues.removeLabel({
+        owner,
+        repo: HUB_REPO,
+        issue_number: issueNumber,
+        name: label,
+      });
+    } catch {
+      // Ignore if label doesn't exist
+    }
+  }
+
+  // Reopen if closed
+  if (issue.state === "closed") {
+    await octokit.rest.issues.update({
+      owner,
+      repo: HUB_REPO,
+      issue_number: issueNumber,
+      state: "open",
+    });
+  }
+
+  // Trigger re-implementation by adding ai-implement label
+  await octokit.rest.issues.addLabels({
+    owner,
+    repo: HUB_REPO,
+    issue_number: issueNumber,
+    labels: ["ai-implement"],
+  });
+}
+
 function parseTargetRepo(body: string): string | null {
   const match = body.match(/<!-- target-repo: (\S+) -->/);
   return match ? match[1] : null;
@@ -161,5 +206,7 @@ function mapIssueToTask(issue: any, repo: string): Task {
     issueUrl: issue.html_url,
     repo,
     createdAt: issue.created_at,
+    updatedAt: issue.updated_at,
+    closedAt: issue.closed_at,
   };
 }

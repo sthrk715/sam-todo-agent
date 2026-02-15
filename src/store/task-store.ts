@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import type { Task, CreateTaskInput, Repo, TaskStatus } from "@/types";
-import { createIssue, fetchAllIssues, fetchRepos, startImplementation, deleteIssue } from "@/actions/github";
+import { createIssue, fetchAllIssues, fetchRepos, startImplementation, deleteIssue, retryFailedTask } from "@/actions/github";
 
 // ステータスの進行順序（syncでの巻き戻りを防止）
 const STATUS_ORDER: Record<TaskStatus, number> = {
@@ -38,6 +38,7 @@ interface TaskState {
   addTask: (input: CreateTaskInput) => Promise<Task>;
   startImpl: (issueNumber: number) => Promise<void>;
   deleteTask: (issueNumber: number) => Promise<void>;
+  retryTask: (issueNumber: number) => Promise<void>;
   syncTasks: () => Promise<void>;
   setTasksFromSSE: (tasks: Task[]) => void;
   clearError: () => void;
@@ -120,6 +121,24 @@ export const useTaskStore = create<TaskState>((set, get) => ({
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "タスクの削除に失敗しました";
+      set({ error: message });
+      throw err;
+    }
+  },
+
+  retryTask: async (issueNumber) => {
+    try {
+      await retryFailedTask(issueNumber);
+      set((state) => ({
+        tasks: state.tasks.map((t) =>
+          t.issueNumber === issueNumber
+            ? { ...t, status: "queued" as const, state: "open" as const }
+            : t
+        ),
+      }));
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "タスクの再試行に失敗しました";
       set({ error: message });
       throw err;
     }

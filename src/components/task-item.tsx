@@ -11,6 +11,7 @@ import {
   DollarSign,
   Play,
   Trash2,
+  RotateCcw,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -72,9 +73,11 @@ export function TaskItem({ task }: TaskItemProps) {
   const StatusIcon = config.icon;
   const isDone = task.status === "done";
   const isQueued = task.status === "queued";
-  const { startImpl, deleteTask } = useTaskStore();
+  const isFailed = task.status === "failed";
+  const { startImpl, deleteTask, retryTask } = useTaskStore();
   const [starting, setStarting] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [retrying, setRetrying] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
 
   const handleStart = async () => {
@@ -99,6 +102,18 @@ export function TaskItem({ task }: TaskItemProps) {
       toast.error("タスクの削除に失敗しました");
     } finally {
       setDeleting(false);
+    }
+  };
+
+  const handleRetry = async () => {
+    setRetrying(true);
+    try {
+      await retryTask(task.issueNumber);
+      toast.success(`#${task.issueNumber} を再試行します`);
+    } catch {
+      toast.error("再試行に失敗しました");
+    } finally {
+      setRetrying(false);
     }
   };
 
@@ -189,6 +204,21 @@ export function TaskItem({ task }: TaskItemProps) {
               <Play className="mr-1 h-3 w-3" />
             )}
             実装へ進む
+          </Button>
+        )}
+        {isFailed && (
+          <Button
+            size="sm"
+            onClick={handleRetry}
+            disabled={retrying}
+            className="h-7 bg-amber-500 hover:bg-amber-600 text-white text-xs px-2.5"
+          >
+            {retrying ? (
+              <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+            ) : (
+              <RotateCcw className="mr-1 h-3 w-3" />
+            )}
+            再試行
           </Button>
         )}
         <a
