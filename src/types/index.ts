@@ -1,9 +1,13 @@
+export type TaskStatus = "queued" | "in_progress" | "review" | "done" | "failed";
+
 export interface Task {
   id: number;
   title: string;
   description: string;
   labels: string[];
   state: "open" | "closed";
+  status: TaskStatus;
+  cost: number | null;
   issueNumber: number;
   issueUrl: string;
   repo: string;

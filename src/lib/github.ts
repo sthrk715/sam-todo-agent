@@ -1,5 +1,5 @@
 import { Octokit } from "octokit";
-import type { Task, CreateTaskInput, Repo } from "@/types";
+import type { Task, TaskStatus, CreateTaskInput, Repo } from "@/types";
 
 const HUB_REPO = "sam-todo-agent";
 
@@ -24,7 +24,6 @@ function getOctokit() {
 export async function fetchRepos(): Promise<Repo[]> {
   const octokit = getOctokit();
 
-  // 認証ユーザーのリポジトリ一覧（privateを含む）
   const { data } = await octokit.rest.repos.listForAuthenticatedUser({
     sort: "updated",
     per_page: 100,
@@ -45,7 +44,6 @@ export async function createIssue(input: CreateTaskInput): Promise<Task> {
   const labels: string[] = ["ai-task"];
   if (input.label) labels.push(input.label);
 
-  // target-repo メタデータを本文に埋め込み
   const bodyWithMeta = `<!-- target-repo: ${input.repo} -->\n\n${input.description || ""}`;
 
   const { data } = await octokit.rest.issues.create({
@@ -76,7 +74,6 @@ export async function fetchIssues(targetRepo: string): Promise<Task[]> {
     .filter((issue) => !issue.pull_request)
     .filter((issue) => {
       const repo = parseTargetRepo(issue.body || "");
-      // メタデータがない古いIssueはsam-todo-agent向けとみなす
       return (repo || HUB_REPO) === targetRepo;
     })
     .map((issue) => mapIssueToTask(issue, targetRepo));
@@ -87,24 +84,45 @@ function parseTargetRepo(body: string): string | null {
   return match ? match[1] : null;
 }
 
+function parseCost(body: string): number | null {
+  const match = body.match(/<!-- api-cost: ([\d.]+) -->/);
+  return match ? parseFloat(match[1]) : null;
+}
+
+function deriveStatus(state: string, labels: string[]): TaskStatus {
+  if (state === "closed") return "done";
+  if (labels.includes("status:failed")) return "failed";
+  if (labels.includes("status:review")) return "review";
+  if (labels.includes("status:in-progress")) return "in_progress";
+  return "queued";
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapIssueToTask(issue: any, repo: string): Task {
   const body = issue.body || "";
   const title = issue.title || "";
 
-  // メタデータとリポジトリプレフィックスを除去して表示用にクリーンアップ
-  const cleanBody = body.replace(/<!-- target-repo: \S+ -->\n?\n?/, "").trim();
+  const cleanBody = body
+    .replace(/<!-- target-repo: \S+ -->\n?\n?/, "")
+    .replace(/<!-- api-cost: [\d.]+ -->\n?/, "")
+    .trim();
   const cleanTitle = title.replace(/^\[\S+\]\s*/, "");
+
+  const labelNames: string[] =
+    issue.labels?.map((l: { name?: string }) =>
+      typeof l === "string" ? l : l.name || ""
+    ) || [];
 
   return {
     id: issue.id,
     title: cleanTitle,
     description: cleanBody,
-    labels:
-      issue.labels?.map((l: { name?: string }) =>
-        typeof l === "string" ? l : l.name || ""
-      ) || [],
+    labels: labelNames.filter(
+      (l) => !l.startsWith("status:") && l !== "ai-task"
+    ),
     state: issue.state as "open" | "closed",
+    status: deriveStatus(issue.state, labelNames),
+    cost: parseCost(body),
     issueNumber: issue.number,
     issueUrl: issue.html_url,
     repo,

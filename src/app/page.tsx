@@ -1,20 +1,14 @@
 "use client";
 
 import { useEffect } from "react";
-import { Bot, Lock, Globe } from "lucide-react";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Bot } from "lucide-react";
 import { TaskForm } from "@/components/task-form";
 import { TaskList } from "@/components/task-list";
+import { CostDashboard } from "@/components/cost-dashboard";
 import { useTaskStore } from "@/store/task-store";
 
 export default function Home() {
-  const { repos, selectedRepo, setSelectedRepo, loadRepos } = useTaskStore();
+  const { loadRepos } = useTaskStore();
 
   useEffect(() => {
     loadRepos();
@@ -38,36 +32,6 @@ export default function Home() {
               </p>
             </div>
           </div>
-
-          {/* Repo Selector */}
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-zinc-500 hidden sm:inline">
-              リポジトリ:
-            </span>
-            <Select value={selectedRepo} onValueChange={setSelectedRepo}>
-              <SelectTrigger className="w-[220px] border-zinc-800 bg-zinc-900/50 text-zinc-100 focus:ring-cyan-500/50">
-                <SelectValue placeholder="リポジトリを選択" />
-              </SelectTrigger>
-              <SelectContent className="border-zinc-800 bg-zinc-900">
-                {repos.map((repo) => (
-                  <SelectItem
-                    key={repo.name}
-                    value={repo.name}
-                    className="text-zinc-100 focus:bg-cyan-950/50 focus:text-cyan-400"
-                  >
-                    <span className="flex items-center gap-1.5">
-                      {repo.private ? (
-                        <Lock className="h-3 w-3 text-zinc-500" />
-                      ) : (
-                        <Globe className="h-3 w-3 text-zinc-500" />
-                      )}
-                      {repo.name}
-                    </span>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
         </div>
       </header>
 
@@ -83,8 +47,9 @@ export default function Home() {
           </div>
         </aside>
 
-        {/* Right: Task List */}
-        <main>
+        {/* Right: Task List + Dashboard */}
+        <main className="space-y-4">
+          <CostDashboard />
           <TaskList />
         </main>
       </div>

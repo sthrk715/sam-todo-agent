@@ -29,14 +29,35 @@ jobs:
           echo "target_repo=$TARGET" >> "$GITHUB_OUTPUT"
           echo "Target repository: $TARGET"
 
-      # 2. 対象リポジトリをチェックアウト
+      # 2. ステータスラベルを確保 & in-progress に設定
+      - name: Set status in-progress
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.PAT_TOKEN }}
+          script: |
+            const owner = context.repo.owner;
+            const repo = 'sam-todo-agent';
+            const issue_number = ${{ github.event.issue.number }};
+            const labels = [
+              { name: 'status:in-progress', color: 'fbca04', description: 'AI実装中' },
+              { name: 'status:review', color: '0075ca', description: 'PRレビュー待ち' },
+              { name: 'status:failed', color: 'e11d48', description: '実装失敗' },
+            ];
+            for (const l of labels) {
+              try { await github.rest.issues.createLabel({ owner, repo, ...l }); } catch {}
+            }
+            try { await github.rest.issues.removeLabel({ owner, repo, issue_number, name: 'status:failed' }); } catch {}
+            try { await github.rest.issues.removeLabel({ owner, repo, issue_number, name: 'status:review' }); } catch {}
+            await github.rest.issues.addLabels({ owner, repo, issue_number, labels: ['status:in-progress'] });
+
+      # 3. 対象リポジトリをチェックアウト
       - uses: actions/checkout@v4
         with:
           repository: ${{ github.repository_owner }}/${{ steps.parse.outputs.target_repo }}
           token: ${{ secrets.PAT_TOKEN }}
           fetch-depth: 0
 
-      # 3. Claude Code をインストール
+      # 4. Claude Code をインストール
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
@@ -44,14 +65,14 @@ jobs:
       - name: Install Claude Code
         run: npm install -g @anthropic-ai/claude-code
 
-      # 4. ブランチ作成（再実行時は既存ブランチをリセット）
+      # 5. ブランチ作成（再実行時は既存ブランチをリセット）
       - name: Create branch
         run: |
           BRANCH="ai/issue-${ISSUE_NUMBER}"
           git fetch origin "$BRANCH" 2>/dev/null && git checkout "$BRANCH" && git reset --hard origin/main || git checkout -b "$BRANCH"
           echo "BRANCH=$BRANCH" >> "$GITHUB_ENV"
 
-      # 5. Claude で実装
+      # 6. Claude で実装（コスト情報をキャプチャ）
       - name: Implement with Claude
         env:
           ANTHROPIC_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
@@ -61,7 +82,7 @@ jobs:
           CLEAN_TITLE=$(echo "$ISSUE_TITLE" | sed 's/^\[.*\] //')
           CLEAN_BODY=$(echo "$ISSUE_BODY" | sed 's/<!-- target-repo: [^ ]* -->//')
 
-          claude -p --dangerously-skip-permissions "$(cat <<EOF
+          claude -p --dangerously-skip-permissions --output-format stream-json "$(cat <<EOF
           あなたはコーディングエージェントです。以下のIssueを実装してください。
           質問せずに自分で判断して実装を完了させてください。
 
@@ -74,9 +95,17 @@ jobs:
           - 必要なファイルを作成・修正してください
           - 不明点があっても推測して実装を進めてください
           EOF
-          )"
+          )" > /tmp/claude-output.jsonl 2>&1 || true
 
-      # 6. コミット & プッシュ
+          # コスト情報を抽出（stream-json の result メッセージから）
+          COST=$(cat /tmp/claude-output.jsonl | grep -oP '"cost_usd"\s*:\s*\K[\d.]+' | tail -1 || echo "")
+          if [ -z "$COST" ]; then
+            COST=$(cat /tmp/claude-output.jsonl | grep -oP '"total_cost"\s*:\s*\K[\d.]+' | tail -1 || echo "")
+          fi
+          echo "API_COST=${COST:-unknown}" >> "$GITHUB_ENV"
+          echo "Extracted cost: ${COST:-unknown}"
+
+      # 7. コミット & プッシュ
       - name: Commit and push
         id: commit
         run: |
@@ -92,7 +121,7 @@ jobs:
           git push --force-with-lease origin "$BRANCH"
           echo "has_changes=true" >> "$GITHUB_OUTPUT"
 
-      # 7. 対象リポジトリにPR作成
+      # 8. 対象リポジトリにPR作成
       - name: Create PR
         if: steps.commit.outputs.has_changes == 'true'
         id: pr
@@ -111,10 +140,56 @@ jobs:
 
           Closes ${{ github.repository_owner }}/sam-todo-agent#${{ github.event.issue.number }}
           PRBODY
-          )")
-          echo "pr_url=$PR_URL" >> "$GITHUB_OUTPUT"
+          )") || true
+          echo "pr_url=${PR_URL}" >> "$GITHUB_OUTPUT"
 
-      # 8. 元Issueにコメント
+      # 9. Issueにコスト情報を埋め込み
+      - name: Record cost in issue body
+        if: env.API_COST != 'unknown'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.PAT_TOKEN }}
+          script: |
+            const owner = context.repo.owner;
+            const repo = 'sam-todo-agent';
+            const issue_number = ${{ github.event.issue.number }};
+            const cost = process.env.API_COST;
+            const { data: issue } = await github.rest.issues.get({ owner, repo, issue_number });
+            let body = issue.body || '';
+            // 既存のコストメタデータを更新 or 追加
+            if (body.includes('<!-- api-cost:')) {
+              body = body.replace(/<!-- api-cost: [\d.]+ -->/, `<!-- api-cost: ${cost} -->`);
+            } else {
+              body = `<!-- api-cost: ${cost} -->\n${body}`;
+            }
+            await github.rest.issues.update({ owner, repo, issue_number, body });
+
+      # 10. ステータスラベルを更新
+      - name: Set status review
+        if: steps.commit.outputs.has_changes == 'true'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.PAT_TOKEN }}
+          script: |
+            const owner = context.repo.owner;
+            const repo = 'sam-todo-agent';
+            const issue_number = ${{ github.event.issue.number }};
+            try { await github.rest.issues.removeLabel({ owner, repo, issue_number, name: 'status:in-progress' }); } catch {}
+            await github.rest.issues.addLabels({ owner, repo, issue_number, labels: ['status:review'] });
+
+      - name: Set status failed
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.PAT_TOKEN }}
+          script: |
+            const owner = context.repo.owner;
+            const repo = 'sam-todo-agent';
+            const issue_number = ${{ github.event.issue.number }};
+            try { await github.rest.issues.removeLabel({ owner, repo, issue_number, name: 'status:in-progress' }); } catch {}
+            await github.rest.issues.addLabels({ owner, repo, issue_number, labels: ['status:failed'] });
+
+      # 11. 元Issueにコメント
       - name: Comment on issue
         if: always()
         uses: actions/github-script@v7
@@ -124,13 +199,15 @@ jobs:
             const hasChanges = '${{ steps.commit.outputs.has_changes }}' === 'true';
             const targetRepo = '${{ steps.parse.outputs.target_repo }}';
             const prUrl = '${{ steps.pr.outputs.pr_url }}' || '';
+            const cost = process.env.API_COST || 'unknown';
+            const costText = cost !== 'unknown' ? `\nAPI コスト: $${cost}` : '';
             let message;
             if (hasChanges && prUrl) {
-              message = `🤖 実装完了！PRを作成しました。\n\n対象リポジトリ: \`${targetRepo}\`\nPR: ${prUrl}`;
+              message = `🤖 実装完了！PRを作成しました。\n\n対象リポジトリ: \`${targetRepo}\`\nPR: ${prUrl}${costText}`;
             } else if (hasChanges) {
-              message = `🤖 実装完了！\n\n対象リポジトリ: \`${targetRepo}\``;
+              message = `🤖 実装完了！\n\n対象リポジトリ: \`${targetRepo}\`${costText}`;
             } else {
-              message = `🤖 変更対象が見つかりませんでした。Issueの内容をより具体的に記述してください。`;
+              message = `🤖 変更対象が見つかりませんでした。Issueの内容をより具体的に記述してください。${costText}`;
             }
             await github.rest.issues.createComment({
               owner: context.repo.owner,

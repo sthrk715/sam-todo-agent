@@ -15,8 +15,8 @@ export function TaskList() {
     return () => stopPolling();
   }, [startPolling, stopPolling]);
 
-  const openTasks = tasks.filter((t) => t.state === "open");
-  const closedTasks = tasks.filter((t) => t.state === "closed");
+  const activeTasks = tasks.filter((t) => t.status !== "done");
+  const doneTasks = tasks.filter((t) => t.status === "done");
 
   return (
     <div className="space-y-4">
@@ -24,7 +24,7 @@ export function TaskList() {
         <div className="flex items-center gap-3">
           <h2 className="text-lg font-semibold text-zinc-100">タスク一覧</h2>
           <span className="rounded-full bg-cyan-950/50 px-2 py-0.5 text-xs text-cyan-400 font-mono">
-            {openTasks.length} open
+            {activeTasks.length} active
           </span>
         </div>
         <Button
@@ -64,22 +64,22 @@ export function TaskList() {
       )}
 
       <div className="space-y-2">
-        {openTasks.map((task) => (
+        {activeTasks.map((task) => (
           <TaskItem key={task.id} task={task} />
         ))}
       </div>
 
-      {closedTasks.length > 0 && (
+      {doneTasks.length > 0 && (
         <>
           <div className="flex items-center gap-2 pt-2">
             <div className="h-px flex-1 bg-zinc-800" />
             <span className="text-xs text-zinc-600">
-              完了 ({closedTasks.length})
+              完了 ({doneTasks.length})
             </span>
             <div className="h-px flex-1 bg-zinc-800" />
           </div>
           <div className="space-y-2">
-            {closedTasks.map((task) => (
+            {doneTasks.map((task) => (
               <TaskItem key={task.id} task={task} />
             ))}
           </div>
