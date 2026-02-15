@@ -16,25 +16,125 @@ jobs:
       contents: write
       pull-requests: write
       issues: write
+    env:
+      ISSUE_NUMBER: ${{ github.event.issue.number }}
     steps:
+      # 1. Issue本文から対象リポジトリをパース
+      - name: Parse target repo
+        id: parse
+        env:
+          ISSUE_BODY: ${{ github.event.issue.body }}
+        run: |
+          TARGET=$(echo "$ISSUE_BODY" | grep -oP '<!-- target-repo: \K\S+(?= -->)' || echo "sam-todo-agent")
+          echo "target_repo=$TARGET" >> "$GITHUB_OUTPUT"
+          echo "Target repository: $TARGET"
+
+      # 2. 対象リポジトリをチェックアウト
       - uses: actions/checkout@v4
         with:
+          repository: ${{ github.repository_owner }}/${{ steps.parse.outputs.target_repo }}
+          token: ${{ secrets.PAT_TOKEN }}
           fetch-depth: 0
 
-      - name: Claude Code Action
-        uses: anthropics/claude-code-action@v1
+      # 3. Claude Code をインストール
+      - uses: actions/setup-node@v4
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          anthropic_api_key: ${{ secrets.CLAUDE_API_KEY }}
-          assignee_trigger: "claude"
-          prompt: |
-            あなたはコーディングエージェントです。以下のIssueを実装してください。質問せずに自分で判断して実装を完了させてください。
+          node-version: "20"
 
-            ## Issue #${{ github.event.issue.number }}
-            タイトル: ${{ github.event.issue.title }}
-            本文: ${{ github.event.issue.body }}
+      - name: Install Claude Code
+        run: npm install -g @anthropic-ai/claude-code
 
-            ## 指示
-            - コードを実装し、変更をコミットしてください
-            - PRを作成し、説明に "Closes #${{ github.event.issue.number }}" を含めてください
-            - 不明点があっても推測して実装を進めてください
+      # 4. ブランチ作成
+      - name: Create branch
+        run: |
+          BRANCH="ai/issue-${ISSUE_NUMBER}"
+          git checkout -b "$BRANCH"
+          echo "BRANCH=$BRANCH" >> "$GITHUB_ENV"
+
+      # 5. Claude で実装
+      - name: Implement with Claude
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          ISSUE_BODY: ${{ github.event.issue.body }}
+        run: |
+          CLEAN_TITLE=$(echo "$ISSUE_TITLE" | sed 's/^\[.*\] //')
+          CLEAN_BODY=$(echo "$ISSUE_BODY" | sed 's/<!-- target-repo: [^ ]* -->//')
+
+          claude -p --dangerously-skip-permissions "$(cat <<EOF
+          あなたはコーディングエージェントです。以下のIssueを実装してください。
+          質問せずに自分で判断して実装を完了させてください。
+
+          ## Issue #${ISSUE_NUMBER}
+          タイトル: ${CLEAN_TITLE}
+          本文: ${CLEAN_BODY}
+
+          ## 指示
+          - このリポジトリのコードを分析し、Issueの内容を実装してください
+          - 必要なファイルを作成・修正してください
+          - 不明点があっても推測して実装を進めてください
+          EOF
+          )"
+
+      # 6. コミット & プッシュ
+      - name: Commit and push
+        id: commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No changes detected"
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git commit -m "feat: implement sam-todo-agent#${ISSUE_NUMBER}"
+          git push origin "$BRANCH"
+          echo "has_changes=true" >> "$GITHUB_OUTPUT"
+
+      # 7. 対象リポジトリにPR作成
+      - name: Create PR
+        if: steps.commit.outputs.has_changes == 'true'
+        id: pr
+        env:
+          GH_TOKEN: ${{ secrets.PAT_TOKEN }}
+          TARGET_REPO: ${{ steps.parse.outputs.target_repo }}
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+        run: |
+          CLEAN_TITLE=$(echo "$ISSUE_TITLE" | sed 's/^\[.*\] //')
+          OWNER="${{ github.repository_owner }}"
+          PR_URL=$(gh pr create \
+            --repo "${OWNER}/${TARGET_REPO}" \
+            --title "${CLEAN_TITLE}" \
+            --body "$(cat <<'PRBODY'
+          Implements ${{ github.repository_owner }}/sam-todo-agent#${{ github.event.issue.number }}
+
+          Closes ${{ github.repository_owner }}/sam-todo-agent#${{ github.event.issue.number }}
+          PRBODY
+          )")
+          echo "pr_url=$PR_URL" >> "$GITHUB_OUTPUT"
+
+      # 8. 元Issueにコメント
+      - name: Comment on issue
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.PAT_TOKEN }}
+          script: |
+            const hasChanges = '${{ steps.commit.outputs.has_changes }}' === 'true';
+            const targetRepo = '${{ steps.parse.outputs.target_repo }}';
+            const prUrl = '${{ steps.pr.outputs.pr_url }}' || '';
+            let message;
+            if (hasChanges && prUrl) {
+              message = `🤖 実装完了！PRを作成しました。\n\n対象リポジトリ: \`${targetRepo}\`\nPR: ${prUrl}`;
+            } else if (hasChanges) {
+              message = `🤖 実装完了！\n\n対象リポジトリ: \`${targetRepo}\``;
+            } else {
+              message = `🤖 変更対象が見つかりませんでした。Issueの内容をより具体的に記述してください。`;
+            }
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: 'sam-todo-agent',
+              issue_number: ${{ github.event.issue.number }},
+              body: message
+            });

@@ -1,6 +1,8 @@
 import { Octokit } from "octokit";
 import type { Task, CreateTaskInput, Repo } from "@/types";
 
+const HUB_REPO = "sam-todo-agent";
+
 function getConfig() {
   const token = process.env.NEXT_PUBLIC_GITHUB_TOKEN;
   const owner = process.env.NEXT_PUBLIC_GITHUB_OWNER;
@@ -43,24 +45,27 @@ export async function createIssue(input: CreateTaskInput): Promise<Task> {
   const labels: string[] = ["ai-task"];
   if (input.label) labels.push(input.label);
 
+  // target-repo メタデータを本文に埋め込み
+  const bodyWithMeta = `<!-- target-repo: ${input.repo} -->\n\n${input.description || ""}`;
+
   const { data } = await octokit.rest.issues.create({
     owner,
-    repo: input.repo,
-    title: input.title,
-    body: input.description || "",
+    repo: HUB_REPO,
+    title: `[${input.repo}] ${input.title}`,
+    body: bodyWithMeta,
     labels,
   });
 
   return mapIssueToTask(data, input.repo);
 }
 
-export async function fetchIssues(repo: string): Promise<Task[]> {
+export async function fetchIssues(targetRepo: string): Promise<Task[]> {
   const octokit = getOctokit();
   const { owner } = getConfig();
 
   const { data } = await octokit.rest.issues.listForRepo({
     owner,
-    repo,
+    repo: HUB_REPO,
     state: "all",
     sort: "created",
     direction: "desc",
@@ -69,15 +74,32 @@ export async function fetchIssues(repo: string): Promise<Task[]> {
 
   return data
     .filter((issue) => !issue.pull_request)
-    .map((issue) => mapIssueToTask(issue, repo));
+    .filter((issue) => {
+      const repo = parseTargetRepo(issue.body || "");
+      // メタデータがない古いIssueはsam-todo-agent向けとみなす
+      return (repo || HUB_REPO) === targetRepo;
+    })
+    .map((issue) => mapIssueToTask(issue, targetRepo));
+}
+
+function parseTargetRepo(body: string): string | null {
+  const match = body.match(/<!-- target-repo: (\S+) -->/);
+  return match ? match[1] : null;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapIssueToTask(issue: any, repo: string): Task {
+  const body = issue.body || "";
+  const title = issue.title || "";
+
+  // メタデータとリポジトリプレフィックスを除去して表示用にクリーンアップ
+  const cleanBody = body.replace(/<!-- target-repo: \S+ -->\n?\n?/, "").trim();
+  const cleanTitle = title.replace(/^\[\S+\]\s*/, "");
+
   return {
     id: issue.id,
-    title: issue.title,
-    description: issue.body || "",
+    title: cleanTitle,
+    description: cleanBody,
     labels:
       issue.labels?.map((l: { name?: string }) =>
         typeof l === "string" ? l : l.name || ""
