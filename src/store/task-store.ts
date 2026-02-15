@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import type { Task, CreateTaskInput, Repo, TaskStatus } from "@/types";
 import { createIssue, fetchAllIssues, fetchRepos, startImplementation, deleteIssue, retryFailedTask } from "@/actions/github";
+import { showNotification } from "@/lib/notifications";
 
 // ステータスの進行順序（syncでの巻き戻りを防止）
 const STATUS_ORDER: Record<TaskStatus, number> = {
@@ -160,9 +161,35 @@ export const useTaskStore = create<TaskState>((set, get) => ({
   },
 
   setTasksFromSSE: (remoteTasks) => {
+    const prevTasks = get().tasks;
+    const prevMap = new Map(prevTasks.map(t => [t.issueNumber, t.status]));
+
     set((state) => ({
       tasks: mergeTasks(state.tasks, remoteTasks),
     }));
+
+    // 通知: done または failed に変化したタスク
+    for (const task of remoteTasks as Task[]) {
+      const prevStatus = prevMap.get(task.issueNumber);
+      if (prevStatus && prevStatus !== task.status) {
+        if (task.status === "done") {
+          showNotification("タスク完了", {
+            body: `✅ ${task.title} の実装が完了しました`,
+            tag: `task-${task.issueNumber}`,
+          });
+        } else if (task.status === "failed") {
+          showNotification("タスク失敗", {
+            body: `❌ ${task.title} の実装に失敗しました`,
+            tag: `task-${task.issueNumber}`,
+          });
+        } else if (task.status === "review") {
+          showNotification("レビュー待ち", {
+            body: `📝 ${task.title} のPRが作成されました`,
+            tag: `task-${task.issueNumber}`,
+          });
+        }
+      }
+    }
   },
 
   clearError: () => set({ error: null }),
