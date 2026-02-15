@@ -71,7 +71,14 @@ export async function fetchAllIssues(): Promise<Task[]> {
   });
 
   return data
-    .filter((issue) => !issue.pull_request)
+    .filter((issue) => {
+      if (issue.pull_request) return false;
+      // deletedラベルが付いているissueを除外
+      const labels = issue.labels?.map((l) =>
+        typeof l === "string" ? l : l.name || ""
+      ) || [];
+      return !labels.includes("deleted");
+    })
     .map((issue) => {
       const repo = parseTargetRepo(issue.body || "") || HUB_REPO;
       return mapIssueToTask(issue, repo);
@@ -87,6 +94,20 @@ export async function startImplementation(issueNumber: number): Promise<void> {
     repo: HUB_REPO,
     issue_number: issueNumber,
     labels: ["ai-implement"],
+  });
+}
+
+export async function deleteIssue(issueNumber: number): Promise<void> {
+  const octokit = getOctokit();
+  const { owner } = getConfig();
+
+  // GitHub APIではissueを完全に削除できないため、クローズして削除済みラベルを追加
+  await octokit.rest.issues.update({
+    owner,
+    repo: HUB_REPO,
+    issue_number: issueNumber,
+    state: "closed",
+    labels: ["deleted"],
   });
 }
 
