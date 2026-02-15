@@ -167,15 +167,25 @@ jobs:
         run: |
           CLEAN_TITLE=$(echo "$ISSUE_TITLE" | sed 's/^\[.*\] //')
           OWNER="${{ github.repository_owner }}"
-          PR_URL=$(gh pr create \
-            --repo "${OWNER}/${TARGET_REPO}" \
-            --title "${CLEAN_TITLE}" \
-            --body "$(cat <<'PRBODY'
+
+          # 既存PRがあればURLを取得、なければ新規作成
+          EXISTING_PR=$(gh pr list --repo "${OWNER}/${TARGET_REPO}" --head "$BRANCH" --json url --jq '.[0].url' 2>/dev/null || echo "")
+          if [ -n "$EXISTING_PR" ]; then
+            echo "PR already exists: $EXISTING_PR"
+            PR_URL="$EXISTING_PR"
+          else
+            PR_URL=$(gh pr create \
+              --repo "${OWNER}/${TARGET_REPO}" \
+              --head "$BRANCH" \
+              --base main \
+              --title "${CLEAN_TITLE}" \
+              --body "$(cat <<'PRBODY'
           Implements ${{ github.repository_owner }}/sam-todo-agent#${{ github.event.issue.number }}
 
           Closes ${{ github.repository_owner }}/sam-todo-agent#${{ github.event.issue.number }}
           PRBODY
-          )") || true
+          )" 2>&1) || echo "::warning::PR creation failed: $PR_URL"
+          fi
           echo "pr_url=${PR_URL}" >> "$GITHUB_OUTPUT"
 
       # 9. Issueにコスト情報を埋め込み
