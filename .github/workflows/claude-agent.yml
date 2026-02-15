@@ -103,12 +103,16 @@ jobs:
           - このリポジトリのコードを分析し、Issueの内容を実装してください
           - 必要なファイルを作成・修正してください
           - 不明点があっても推測して実装を進めてください
+          - Issue本文に「X上の関連情報」セクションがある場合、そこに記載された
+            投稿や技術情報を参考にして実装方針を決定してください
+          - Issue本文の「実装要件」チェックリストがある場合、それを満たすように実装してください
 
           ## 利用可能なAPI
           X (Twitter) APIの認証情報が環境変数で利用可能です:
           - X_API_KEY, X_API_SECRET (API Key / Secret)
           - X_ACCESS_TOKEN, X_ACCESS_SECRET (Access Token / Secret)
-          Issueの内容がX/Twitter連携を求める場合、これらを使って実装してください。"
+          X/Twitter連携機能の実装や、ポスト投稿が必要な場合に使用してください。
+          OAuth 1.0a (HMAC-SHA1) で認証し、X API v2 エンドポイントを使用してください。"
 
           echo "::group::Prompt"
           echo "$PROMPT"
