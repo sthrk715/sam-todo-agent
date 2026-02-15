@@ -70,7 +70,7 @@ jobs:
           git fetch origin "$BRANCH" 2>/dev/null && git checkout "$BRANCH" && git reset --hard origin/main || git checkout -b "$BRANCH"
           echo "BRANCH=$BRANCH" >> "$GITHUB_ENV"
 
-      # 6. Claude で実装（コスト情報をキャプチャ）
+      # 6. Claude で実装
       - name: Implement with Claude
         env:
           ANTHROPIC_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
@@ -88,6 +88,10 @@ jobs:
           echo "Working directory: $(pwd)"
           ls -la
           echo "::endgroup::"
+
+          # 実行開始時刻を記録（Admin APIコスト取得用）
+          START_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          echo "CLAUDE_START_TIME=$START_TIME" >> "$GITHUB_ENV"
 
           CLEAN_TITLE=$(echo "$ISSUE_TITLE" | sed 's/^\[.*\] //')
           CLEAN_BODY=$(echo "$ISSUE_BODY" | sed 's/<!-- target-repo: [^ ]* -->//')
@@ -132,13 +136,39 @@ jobs:
             echo "::warning::Claude Code exited with code $CLAUDE_EXIT"
           fi
 
-          # コスト情報を抽出（jqでJSON解析）
-          COST=$(jq -r '.cost_usd // empty' /tmp/claude-output.json 2>/dev/null || echo "")
-          if [ -z "$COST" ]; then
-            COST=$(jq -r '.total_cost // empty' /tmp/claude-output.json 2>/dev/null || echo "")
+      # 6.5. Admin APIでコスト取得
+      - name: Get cost from Admin API
+        env:
+          ANTHROPIC_ADMIN_KEY: ${{ secrets.ANTHROPIC_ADMIN_KEY }}
+        run: |
+          # 実行終了時刻（1分のバッファ付き）
+          END_TIME=$(date -u -d "+2 minutes" +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || date -u -v+2M +"%Y-%m-%dT%H:%M:%SZ")
+
+          echo "Cost query: ${CLAUDE_START_TIME} to ${END_TIME}"
+
+          # Admin APIでコストレポート取得（1日バケット、description別）
+          COST_RESPONSE=$(curl -s \
+            "https://api.anthropic.com/v1/organizations/cost_report?starting_at=${CLAUDE_START_TIME}&ending_at=${END_TIME}&bucket_width=1d&group_by[]=description" \
+            -H "x-api-key: $ANTHROPIC_ADMIN_KEY" \
+            -H "anthropic-version: 2023-06-01")
+
+          echo "::group::Admin API Cost Response"
+          echo "$COST_RESPONSE" | jq . 2>/dev/null || echo "$COST_RESPONSE"
+          echo "::endgroup::"
+
+          # 全コスト項目を合算（amount はセント単位 → ドルに変換）
+          TOTAL_CENTS=$(echo "$COST_RESPONSE" | jq -r '
+            [.data[]?.results[]?.amount // "0" | tonumber] | add // 0
+          ' 2>/dev/null || echo "0")
+
+          if [ "$TOTAL_CENTS" != "0" ] && [ -n "$TOTAL_CENTS" ]; then
+            COST=$(echo "scale=4; $TOTAL_CENTS / 100" | bc)
+            echo "API_COST=$COST" >> "$GITHUB_ENV"
+            echo "Total cost: \$${COST} (${TOTAL_CENTS} cents)"
+          else
+            echo "API_COST=unknown" >> "$GITHUB_ENV"
+            echo "::warning::Could not retrieve cost from Admin API"
           fi
-          echo "API_COST=${COST:-unknown}" >> "$GITHUB_ENV"
-          echo "Extracted cost: ${COST:-unknown}"
 
       # 7. コミット & プッシュ
       - name: Commit and push
