@@ -92,12 +92,17 @@ export const useTaskStore = create<TaskState>((set, get) => ({
   },
 
   syncTasks: async () => {
-    // addTask実行中はポーリングをスキップ（楽観的更新の上書き防止）
-    if (get().loading) return;
     set({ syncing: true, error: null });
     try {
-      const tasks = await fetchAllIssues();
-      set({ tasks, syncing: false });
+      const remoteTasks = await fetchAllIssues();
+      set((state) => {
+        // APIにまだ反映されていないローカル追加タスクを保持
+        const remoteIds = new Set(remoteTasks.map((t) => t.issueNumber));
+        const localOnly = state.tasks.filter(
+          (t) => !remoteIds.has(t.issueNumber)
+        );
+        return { tasks: [...localOnly, ...remoteTasks], syncing: false };
+      });
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "同期に失敗しました";
