@@ -15,6 +15,7 @@ import {
   ChevronDown,
   FileCode,
 } from "lucide-react";
+import ReactMarkdown from "react-markdown";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -162,14 +163,31 @@ export function TaskItem({ task }: TaskItemProps) {
         </div>
 
         {task.description && (
-          <button
-            onClick={() => setDescExpanded(!descExpanded)}
-            className="mt-1 text-left w-full"
-          >
-            <p className={`text-xs text-stone-500 ${descExpanded ? "" : "line-clamp-2"}`}>
-              {task.description}
-            </p>
-          </button>
+          <div className="mt-1">
+            <div className={`text-xs text-stone-500 prose prose-xs prose-stone max-w-none
+              prose-headings:text-stone-700 prose-headings:text-xs prose-headings:font-semibold prose-headings:mt-2 prose-headings:mb-1
+              prose-p:my-0.5 prose-ul:my-0.5 prose-li:my-0 prose-a:text-blue-600
+              ${descExpanded ? "" : "line-clamp-2"}`}
+            >
+              <ReactMarkdown>{task.description}</ReactMarkdown>
+            </div>
+            {!descExpanded && (
+              <button
+                onClick={() => setDescExpanded(true)}
+                className="text-[10px] text-stone-400 hover:text-stone-600 mt-0.5 transition-colors"
+              >
+                続きを読む
+              </button>
+            )}
+            {descExpanded && (
+              <button
+                onClick={() => setDescExpanded(false)}
+                className="text-[10px] text-stone-400 hover:text-stone-600 mt-0.5 transition-colors"
+              >
+                折りたたむ
+              </button>
+            )}
+          </div>
         )}
 
         <div className="mt-2 flex flex-wrap items-center gap-2">
