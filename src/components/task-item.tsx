@@ -99,9 +99,10 @@ export function TaskItem({ task }: TaskItemProps) {
             href={task.issueUrl.replace(/\/[^/]+\/issues\/\d+$/, `/${task.repo}`)}
             target="_blank"
             rel="noopener noreferrer"
-            className="font-mono text-xs text-stone-400 hover:text-[#c35a2c] transition-colors"
+            className="inline-flex items-center gap-0.5 font-mono text-xs text-[#c35a2c]/70 hover:text-[#c35a2c] underline decoration-[#c35a2c]/30 hover:decoration-[#c35a2c] transition-colors"
           >
             {task.repo}
+            <ExternalLink className="h-2.5 w-2.5" />
           </a>
           <span className="font-mono text-xs text-stone-400">
             #{task.issueNumber}

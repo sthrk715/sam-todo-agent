@@ -1,6 +1,15 @@
 import { create } from "zustand";
-import type { Task, CreateTaskInput, Repo } from "@/types";
+import type { Task, CreateTaskInput, Repo, TaskStatus } from "@/types";
 import { createIssue, fetchAllIssues, fetchRepos, startImplementation } from "@/lib/github";
+
+// ステータスの進行順序（syncでの巻き戻りを防止）
+const STATUS_ORDER: Record<TaskStatus, number> = {
+  queued: 0,
+  in_progress: 1,
+  review: 2,
+  done: 3,
+  failed: 3,
+};
 
 interface TaskState {
   repos: Repo[];
@@ -96,12 +105,21 @@ export const useTaskStore = create<TaskState>((set, get) => ({
     try {
       const remoteTasks = await fetchAllIssues();
       set((state) => {
+        const localMap = new Map(state.tasks.map((t) => [t.issueNumber, t]));
         // APIにまだ反映されていないローカル追加タスクを保持
         const remoteIds = new Set(remoteTasks.map((t) => t.issueNumber));
         const localOnly = state.tasks.filter(
           (t) => !remoteIds.has(t.issueNumber)
         );
-        return { tasks: [...localOnly, ...remoteTasks], syncing: false };
+        // ステータスの巻き戻りを防止（楽観的更新を維持）
+        const merged = remoteTasks.map((remote) => {
+          const local = localMap.get(remote.issueNumber);
+          if (local && STATUS_ORDER[local.status] > STATUS_ORDER[remote.status]) {
+            return { ...remote, status: local.status };
+          }
+          return remote;
+        });
+        return { tasks: [...localOnly, ...merged], syncing: false };
       });
     } catch (err) {
       const message =
