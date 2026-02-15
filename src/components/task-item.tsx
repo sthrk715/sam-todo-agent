@@ -95,8 +95,16 @@ export function TaskItem({ task }: TaskItemProps) {
 
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
+          <a
+            href={task.issueUrl.replace(/\/[^/]+\/issues\/\d+$/, `/${task.repo}`)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-mono text-xs text-stone-400 hover:text-[#c35a2c] transition-colors"
+          >
+            {task.repo}
+          </a>
           <span className="font-mono text-xs text-stone-400">
-            {task.repo}#{task.issueNumber}
+            #{task.issueNumber}
           </span>
           <h3
             className={`truncate text-sm font-medium ${
