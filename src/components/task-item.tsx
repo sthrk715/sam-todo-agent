@@ -84,7 +84,7 @@ export function TaskItem({ task }: TaskItemProps) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [descExpanded, setDescExpanded] = useState(false);
-  const hasImpl = !!(task.prUrl || task.summary || task.changedFiles?.length);
+  const hasImpl = !!(task.prUrl || task.summary || task.changedFiles?.length || task.implDescription);
 
   const handleStart = async () => {
     setStarting(true);
@@ -229,6 +229,11 @@ export function TaskItem({ task }: TaskItemProps) {
 
         {expanded && hasImpl && (
           <div className="mt-2 rounded-md border border-stone-100 bg-stone-50/80 p-2.5 text-xs space-y-1.5">
+            {task.implDescription && (
+              <div className="text-stone-600 whitespace-pre-wrap border-b border-stone-200 pb-1.5 mb-1.5">
+                {task.implDescription}
+              </div>
+            )}
             {task.prUrl && (
               <div className="flex items-center gap-1.5">
                 <GitPullRequest className="h-3 w-3 text-blue-500 shrink-0" />

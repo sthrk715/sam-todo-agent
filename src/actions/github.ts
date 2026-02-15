@@ -183,6 +183,19 @@ function parseChangedFiles(body: string): string[] | undefined {
   return match ? match[1].split(",").filter(Boolean) : undefined;
 }
 
+function parseImplDescription(body: string): string | undefined {
+  // Base64エンコードされた文字列は改行を含まないため、単純なマッチで十分
+  const match = body.match(/<!-- impl-description: ([A-Za-z0-9+/=]+) -->/);
+  if (!match) return undefined;
+  // Base64でデコード（ワークフロー側でエンコード）
+  try {
+    return Buffer.from(match[1], "base64").toString("utf-8");
+  } catch {
+    // Base64でない場合はそのまま返す（後方互換性）
+    return match[1];
+  }
+}
+
 function deriveStatus(state: string, labels: string[]): TaskStatus {
   if (state === "closed") return "done";
   if (labels.includes("status:failed")) return "failed";
@@ -202,6 +215,7 @@ function mapIssueToTask(issue: any, repo: string): Task {
     .replace(/<!-- pr-url: .+? -->\n?/, "")
     .replace(/<!-- impl-summary: .+? -->\n?/, "")
     .replace(/<!-- impl-files: .+? -->\n?/, "")
+    .replace(/<!-- impl-description: [A-Za-z0-9+/=]+ -->\n?/, "")
     .trim();
   const cleanTitle = title.replace(/^\[\S+\]\s*/, "");
 
@@ -229,5 +243,6 @@ function mapIssueToTask(issue: any, repo: string): Task {
     prUrl: parsePrUrl(body),
     summary: parseSummary(body),
     changedFiles: parseChangedFiles(body),
+    implDescription: parseImplDescription(body),
   };
 }
