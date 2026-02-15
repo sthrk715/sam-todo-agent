@@ -8,10 +8,9 @@ on:
 
 jobs:
   claude-agent:
-    # ai-taskラベルが付いたIssueのみ対象
     if: |
       (github.event_name == 'issues' && contains(github.event.issue.labels.*.name, 'ai-task')) ||
-      (github.event_name == 'issue_comment' && contains(github.event.issue.labels.*.name, 'ai-task') && contains(github.event.comment.body, '@claude'))
+      (github.event_name == 'issue_comment' && contains(github.event.issue.labels.*.name, 'ai-task'))
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -26,13 +25,8 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
+          anthropic_api_key: ${{ secrets.CLAUDE_API_KEY }}
           trigger_phrase: ""
-          direct_prompt: |
+          prompt: |
             このIssueの内容を実装してください。
-
-            タイトル: ${{ github.event.issue.title }}
-            本文: ${{ github.event.issue.body }}
-
             実装が完了したら、PRを作成してください。PRの説明に "Closes #${{ github.event.issue.number }}" を含めてください。
-        env:
-          ANTHROPIC_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
