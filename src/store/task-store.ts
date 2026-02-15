@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import type { Task, CreateTaskInput, Repo } from "@/types";
-import { createIssue, fetchIssues, fetchRepos } from "@/lib/github";
+import { createIssue, fetchAllIssues, fetchRepos } from "@/lib/github";
 
 interface TaskState {
   repos: Repo[];
@@ -53,10 +53,7 @@ export const useTaskStore = create<TaskState>((set, get) => ({
   },
 
   setSelectedRepo: (repo) => {
-    const { stopPolling, startPolling } = get();
-    stopPolling();
-    set({ selectedRepo: repo, tasks: [] });
-    startPolling();
+    set({ selectedRepo: repo });
   },
 
   addTask: async (input) => {
@@ -77,12 +74,9 @@ export const useTaskStore = create<TaskState>((set, get) => ({
   },
 
   syncTasks: async () => {
-    const { selectedRepo } = get();
-    if (!selectedRepo) return;
-
     set({ syncing: true, error: null });
     try {
-      const tasks = await fetchIssues(selectedRepo);
+      const tasks = await fetchAllIssues();
       set({ tasks, syncing: false });
     } catch (err) {
       const message =

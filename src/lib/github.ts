@@ -57,7 +57,7 @@ export async function createIssue(input: CreateTaskInput): Promise<Task> {
   return mapIssueToTask(data, input.repo);
 }
 
-export async function fetchIssues(targetRepo: string): Promise<Task[]> {
+export async function fetchAllIssues(): Promise<Task[]> {
   const octokit = getOctokit();
   const { owner } = getConfig();
 
@@ -72,11 +72,10 @@ export async function fetchIssues(targetRepo: string): Promise<Task[]> {
 
   return data
     .filter((issue) => !issue.pull_request)
-    .filter((issue) => {
-      const repo = parseTargetRepo(issue.body || "");
-      return (repo || HUB_REPO) === targetRepo;
-    })
-    .map((issue) => mapIssueToTask(issue, targetRepo));
+    .map((issue) => {
+      const repo = parseTargetRepo(issue.body || "") || HUB_REPO;
+      return mapIssueToTask(issue, repo);
+    });
 }
 
 function parseTargetRepo(body: string): string | null {

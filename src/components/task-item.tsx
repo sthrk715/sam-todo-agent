@@ -71,7 +71,7 @@ export function TaskItem({ task }: TaskItemProps) {
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <span className="font-mono text-xs text-zinc-500">
-            #{task.issueNumber}
+            {task.repo}#{task.issueNumber}
           </span>
           <h3
             className={`truncate text-sm font-medium ${
