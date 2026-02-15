@@ -104,23 +104,23 @@ jobs:
           echo "::endgroup::"
 
           set +e
-          claude -p --dangerously-skip-permissions --output-format stream-json "$PROMPT" \
-            > /tmp/claude-output.jsonl
+          claude -p --dangerously-skip-permissions --output-format json --max-turns 30 "$PROMPT" \
+            > /tmp/claude-output.json
           CLAUDE_EXIT=$?
           set -e
 
           echo "::group::Claude Output (exit code: $CLAUDE_EXIT)"
-          cat /tmp/claude-output.jsonl 2>/dev/null || echo "(no output file)"
+          cat /tmp/claude-output.json 2>/dev/null || echo "(no output file)"
           echo "::endgroup::"
 
           if [ "$CLAUDE_EXIT" -ne 0 ]; then
             echo "::warning::Claude Code exited with code $CLAUDE_EXIT"
           fi
 
-          # コスト情報を抽出（stream-json の result メッセージから）
-          COST=$(grep -oP '"cost_usd"\s*:\s*\K[\d.]+' /tmp/claude-output.jsonl 2>/dev/null | tail -1 || echo "")
+          # コスト情報を抽出（json出力から）
+          COST=$(grep -oP '"cost_usd"\s*:\s*\K[\d.]+' /tmp/claude-output.json 2>/dev/null | tail -1 || echo "")
           if [ -z "$COST" ]; then
-            COST=$(grep -oP '"total_cost"\s*:\s*\K[\d.]+' /tmp/claude-output.jsonl 2>/dev/null | tail -1 || echo "")
+            COST=$(grep -oP '"total_cost"\s*:\s*\K[\d.]+' /tmp/claude-output.json 2>/dev/null | tail -1 || echo "")
           fi
           echo "API_COST=${COST:-unknown}" >> "$GITHUB_ENV"
           echo "Extracted cost: ${COST:-unknown}"
