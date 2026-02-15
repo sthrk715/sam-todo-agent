@@ -92,6 +92,8 @@ export const useTaskStore = create<TaskState>((set, get) => ({
   },
 
   syncTasks: async () => {
+    // addTask実行中はポーリングをスキップ（楽観的更新の上書き防止）
+    if (get().loading) return;
     set({ syncing: true, error: null });
     try {
       const tasks = await fetchAllIssues();

@@ -117,10 +117,10 @@ jobs:
             echo "::warning::Claude Code exited with code $CLAUDE_EXIT"
           fi
 
-          # コスト情報を抽出（json出力から）
-          COST=$(grep -oP '"cost_usd"\s*:\s*\K[\d.]+' /tmp/claude-output.json 2>/dev/null | tail -1 || echo "")
+          # コスト情報を抽出（jqでJSON解析）
+          COST=$(jq -r '.cost_usd // empty' /tmp/claude-output.json 2>/dev/null || echo "")
           if [ -z "$COST" ]; then
-            COST=$(grep -oP '"total_cost"\s*:\s*\K[\d.]+' /tmp/claude-output.json 2>/dev/null | tail -1 || echo "")
+            COST=$(jq -r '.total_cost // empty' /tmp/claude-output.json 2>/dev/null || echo "")
           fi
           echo "API_COST=${COST:-unknown}" >> "$GITHUB_ENV"
           echo "Extracted cost: ${COST:-unknown}"

@@ -9,29 +9,37 @@ import {
   GitPullRequest,
   CircleCheck,
   CircleX,
+  ListFilter,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useTaskStore } from "@/store/task-store";
 import { TaskItem } from "./task-item";
 import type { TaskStatus } from "@/types";
 
-const STATUS_TABS: {
+const STATUS_OPTIONS: {
   key: TaskStatus | "all";
   label: string;
-  icon: React.ElementType | null;
+  icon: React.ElementType;
 }[] = [
+  { key: "all", label: "すべて", icon: ListFilter },
   { key: "queued", label: "待機中", icon: Clock },
   { key: "in_progress", label: "実装中", icon: Loader2 },
   { key: "review", label: "レビュー", icon: GitPullRequest },
   { key: "done", label: "完了", icon: CircleCheck },
   { key: "failed", label: "失敗", icon: CircleX },
-  { key: "all", label: "すべて", icon: null },
 ];
 
 export function TaskList() {
   const { tasks, syncing, error, startPolling, stopPolling, syncTasks } =
     useTaskStore();
-  const [filter, setFilter] = useState<TaskStatus | "all">("queued");
+  const [filter, setFilter] = useState<TaskStatus | "all">("all");
 
   useEffect(() => {
     startPolling();
@@ -44,7 +52,39 @@ export function TaskList() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-stone-900">タスク一覧</h2>
+        <div className="flex items-center gap-3">
+          <h2 className="text-lg font-semibold text-stone-900">タスク一覧</h2>
+          <Select
+            value={filter}
+            onValueChange={(v) => setFilter(v as TaskStatus | "all")}
+          >
+            <SelectTrigger className="h-8 w-[160px] border-stone-200 bg-stone-50 text-xs text-stone-700 focus:ring-[#c35a2c]/30">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent className="border-stone-200 bg-white">
+              {STATUS_OPTIONS.map((opt) => {
+                const count =
+                  opt.key === "all"
+                    ? tasks.length
+                    : tasks.filter((t) => t.status === opt.key).length;
+                const Icon = opt.icon;
+                return (
+                  <SelectItem
+                    key={opt.key}
+                    value={opt.key}
+                    className="text-stone-700 text-xs focus:bg-[#c35a2c]/5 focus:text-[#c35a2c]"
+                  >
+                    <span className="flex items-center gap-1.5">
+                      <Icon className="h-3 w-3" />
+                      {opt.label}
+                      <span className="font-mono text-stone-400">{count}</span>
+                    </span>
+                  </SelectItem>
+                );
+              })}
+            </SelectContent>
+          </Select>
+        </div>
         <Button
           variant="ghost"
           size="sm"
@@ -61,45 +101,6 @@ export function TaskList() {
         </Button>
       </div>
 
-      {/* Status filter tabs */}
-      <div className="flex flex-wrap gap-1.5">
-        {STATUS_TABS.map((tab) => {
-          const count =
-            tab.key === "all"
-              ? tasks.length
-              : tasks.filter((t) => t.status === tab.key).length;
-          const isActive = filter === tab.key;
-          const Icon = tab.icon;
-          return (
-            <button
-              key={tab.key}
-              onClick={() => setFilter(tab.key)}
-              className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-                isActive
-                  ? "bg-[#c35a2c] text-white"
-                  : "bg-stone-100 text-stone-500 hover:bg-stone-200"
-              }`}
-            >
-              {Icon && (
-                <Icon
-                  className={`h-3 w-3 ${
-                    tab.key === "in_progress" && !isActive ? "animate-spin" : ""
-                  }`}
-                />
-              )}
-              {tab.label}
-              <span
-                className={`font-mono ${
-                  isActive ? "text-white/80" : "text-stone-400"
-                }`}
-              >
-                {count}
-              </span>
-            </button>
-          );
-        })}
-      </div>
-
       {error && (
         <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
           {error}
@@ -112,7 +113,7 @@ export function TaskList() {
           <p className="text-sm">
             {filter === "all"
               ? "タスクがありません"
-              : `${STATUS_TABS.find((t) => t.key === filter)?.label}のタスクがありません`}
+              : `${STATUS_OPTIONS.find((t) => t.key === filter)?.label}のタスクがありません`}
           </p>
         </div>
       )}
