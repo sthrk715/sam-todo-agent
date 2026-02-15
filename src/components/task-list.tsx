@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import {
   RefreshCw,
   Loader2,
@@ -20,8 +20,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useTaskStore } from "@/store/task-store";
+import { useSSE } from "@/hooks/use-sse";
 import { TaskItem } from "./task-item";
-import type { TaskStatus } from "@/types";
+import type { Task, TaskStatus } from "@/types";
 
 const STATUS_OPTIONS: {
   key: TaskStatus | "all";
@@ -37,14 +38,23 @@ const STATUS_OPTIONS: {
 ];
 
 export function TaskList() {
-  const { tasks, syncing, error, startPolling, stopPolling, syncTasks } =
+  const { tasks, syncing, error, syncTasks, setTasksFromSSE } =
     useTaskStore();
   const [filter, setFilter] = useState<TaskStatus | "all">("all");
 
+  // 初回同期
   useEffect(() => {
-    startPolling();
-    return () => stopPolling();
-  }, [startPolling, stopPolling]);
+    syncTasks();
+  }, [syncTasks]);
+
+  // SSEでリアルタイム更新
+  const handleSSEUpdate = useCallback(
+    (remoteTasks: unknown[]) => {
+      setTasksFromSSE(remoteTasks as Task[]);
+    },
+    [setTasksFromSSE]
+  );
+  useSSE(handleSSEUpdate);
 
   const filteredTasks =
     filter === "all" ? tasks : tasks.filter((t) => t.status === filter);

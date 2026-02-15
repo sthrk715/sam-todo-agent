@@ -76,6 +76,10 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
           ISSUE_TITLE: ${{ github.event.issue.title }}
           ISSUE_BODY: ${{ github.event.issue.body }}
+          X_API_KEY: ${{ secrets.X_API_KEY }}
+          X_API_SECRET: ${{ secrets.X_API_SECRET }}
+          X_ACCESS_TOKEN: ${{ secrets.X_ACCESS_TOKEN }}
+          X_ACCESS_SECRET: ${{ secrets.X_ACCESS_SECRET }}
         run: |
           echo "::group::Debug Info"
           echo "ANTHROPIC_API_KEY set: $([ -n "$ANTHROPIC_API_KEY" ] && echo 'YES' || echo 'NO')"
@@ -98,7 +102,13 @@ jobs:
           ## 指示
           - このリポジトリのコードを分析し、Issueの内容を実装してください
           - 必要なファイルを作成・修正してください
-          - 不明点があっても推測して実装を進めてください"
+          - 不明点があっても推測して実装を進めてください
+
+          ## 利用可能なAPI
+          X (Twitter) APIの認証情報が環境変数で利用可能です:
+          - X_API_KEY, X_API_SECRET (API Key / Secret)
+          - X_ACCESS_TOKEN, X_ACCESS_SECRET (Access Token / Secret)
+          Issueの内容がX/Twitter連携を求める場合、これらを使って実装してください。"
 
           echo "::group::Prompt"
           echo "$PROMPT"

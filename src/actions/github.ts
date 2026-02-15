@@ -1,15 +1,17 @@
+"use server";
+
 import { Octokit } from "octokit";
 import type { Task, TaskStatus, CreateTaskInput, Repo } from "@/types";
 
 const HUB_REPO = "sam-todo-agent";
 
 function getConfig() {
-  const token = process.env.NEXT_PUBLIC_GITHUB_TOKEN;
-  const owner = process.env.NEXT_PUBLIC_GITHUB_OWNER;
+  const token = process.env.GITHUB_TOKEN;
+  const owner = process.env.GITHUB_OWNER;
 
   if (!token || !owner) {
     throw new Error(
-      "環境変数が未設定です: NEXT_PUBLIC_GITHUB_TOKEN, NEXT_PUBLIC_GITHUB_OWNER"
+      "環境変数が未設定です: GITHUB_TOKEN, GITHUB_OWNER"
     );
   }
 

@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import type { Task, CreateTaskInput, Repo, TaskStatus } from "@/types";
-import { createIssue, fetchAllIssues, fetchRepos, startImplementation, deleteIssue } from "@/lib/github";
+import { createIssue, fetchAllIssues, fetchRepos, startImplementation, deleteIssue } from "@/actions/github";
 
 // ステータスの進行順序（syncでの巻き戻りを防止）
 const STATUS_ORDER: Record<TaskStatus, number> = {
@@ -11,6 +11,20 @@ const STATUS_ORDER: Record<TaskStatus, number> = {
   failed: 3,
 };
 
+function mergeTasks(local: Task[], remote: Task[]): Task[] {
+  const localMap = new Map(local.map((t) => [t.issueNumber, t]));
+  const remoteIds = new Set(remote.map((t) => t.issueNumber));
+  const localOnly = local.filter((t) => !remoteIds.has(t.issueNumber));
+  const merged = remote.map((r) => {
+    const l = localMap.get(r.issueNumber);
+    if (l && STATUS_ORDER[l.status] > STATUS_ORDER[r.status]) {
+      return { ...r, status: l.status };
+    }
+    return r;
+  });
+  return [...localOnly, ...merged];
+}
+
 interface TaskState {
   repos: Repo[];
   selectedRepo: string;
@@ -18,7 +32,6 @@ interface TaskState {
   loading: boolean;
   syncing: boolean;
   error: string | null;
-  pollingId: ReturnType<typeof setInterval> | null;
 
   loadRepos: () => Promise<void>;
   setSelectedRepo: (repo: string) => void;
@@ -26,8 +39,7 @@ interface TaskState {
   startImpl: (issueNumber: number) => Promise<void>;
   deleteTask: (issueNumber: number) => Promise<void>;
   syncTasks: () => Promise<void>;
-  startPolling: () => void;
-  stopPolling: () => void;
+  setTasksFromSSE: (tasks: Task[]) => void;
   clearError: () => void;
 }
 
@@ -38,13 +50,11 @@ export const useTaskStore = create<TaskState>((set, get) => ({
   loading: false,
   syncing: false,
   error: null,
-  pollingId: null,
 
   loadRepos: async () => {
     try {
       const repos = await fetchRepos();
       set({ repos });
-      // デフォルトで環境変数のリポジトリを選択、なければ最初のリポジトリ
       const defaultRepo = process.env.NEXT_PUBLIC_GITHUB_REPO || "";
       const { selectedRepo } = get();
       if (!selectedRepo) {
@@ -87,7 +97,6 @@ export const useTaskStore = create<TaskState>((set, get) => ({
   startImpl: async (issueNumber) => {
     try {
       await startImplementation(issueNumber);
-      // ローカル状態を即座に更新
       set((state) => ({
         tasks: state.tasks.map((t) =>
           t.issueNumber === issueNumber ? { ...t, status: "in_progress" as const } : t
@@ -120,23 +129,10 @@ export const useTaskStore = create<TaskState>((set, get) => ({
     set({ syncing: true, error: null });
     try {
       const remoteTasks = await fetchAllIssues();
-      set((state) => {
-        const localMap = new Map(state.tasks.map((t) => [t.issueNumber, t]));
-        // APIにまだ反映されていないローカル追加タスクを保持
-        const remoteIds = new Set(remoteTasks.map((t) => t.issueNumber));
-        const localOnly = state.tasks.filter(
-          (t) => !remoteIds.has(t.issueNumber)
-        );
-        // ステータスの巻き戻りを防止（楽観的更新を維持）
-        const merged = remoteTasks.map((remote) => {
-          const local = localMap.get(remote.issueNumber);
-          if (local && STATUS_ORDER[local.status] > STATUS_ORDER[remote.status]) {
-            return { ...remote, status: local.status };
-          }
-          return remote;
-        });
-        return { tasks: [...localOnly, ...merged], syncing: false };
-      });
+      set((state) => ({
+        tasks: mergeTasks(state.tasks, remoteTasks),
+        syncing: false,
+      }));
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "同期に失敗しました";
@@ -144,25 +140,10 @@ export const useTaskStore = create<TaskState>((set, get) => ({
     }
   },
 
-  startPolling: () => {
-    const { pollingId } = get();
-    if (pollingId) return;
-
-    get().syncTasks();
-
-    const id = setInterval(() => {
-      get().syncTasks();
-    }, 10_000);
-
-    set({ pollingId: id });
-  },
-
-  stopPolling: () => {
-    const { pollingId } = get();
-    if (pollingId) {
-      clearInterval(pollingId);
-      set({ pollingId: null });
-    }
+  setTasksFromSSE: (remoteTasks) => {
+    set((state) => ({
+      tasks: mergeTasks(state.tasks, remoteTasks),
+    }));
   },
 
   clearError: () => set({ error: null }),
