@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import {
   ExternalLink,
   Clock,
@@ -8,8 +9,12 @@ import {
   CircleCheck,
   CircleX,
   DollarSign,
+  Play,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { useTaskStore } from "@/store/task-store";
+import { toast } from "sonner";
 import type { Task, TaskStatus } from "@/types";
 
 interface TaskItemProps {
@@ -56,6 +61,21 @@ export function TaskItem({ task }: TaskItemProps) {
   const config = STATUS_CONFIG[task.status];
   const StatusIcon = config.icon;
   const isDone = task.status === "done";
+  const isQueued = task.status === "queued";
+  const { startImpl } = useTaskStore();
+  const [starting, setStarting] = useState(false);
+
+  const handleStart = async () => {
+    setStarting(true);
+    try {
+      await startImpl(task.issueNumber);
+      toast.success(`#${task.issueNumber} の実装を開始しました`);
+    } catch {
+      toast.error("実装の開始に失敗しました");
+    } finally {
+      setStarting(false);
+    }
+  };
 
   return (
     <div
@@ -121,15 +141,32 @@ export function TaskItem({ task }: TaskItemProps) {
         </div>
       </div>
 
-      <a
-        href={task.issueUrl}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="shrink-0 rounded p-1 text-stone-400 transition-colors hover:text-[#c35a2c]"
-        title="GitHub で見る"
-      >
-        <ExternalLink className="h-4 w-4" />
-      </a>
+      <div className="flex shrink-0 items-center gap-1">
+        {isQueued && (
+          <Button
+            size="sm"
+            onClick={handleStart}
+            disabled={starting}
+            className="h-7 bg-[#c35a2c] hover:bg-[#a84d26] text-white text-xs px-2.5"
+          >
+            {starting ? (
+              <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+            ) : (
+              <Play className="mr-1 h-3 w-3" />
+            )}
+            実装へ進む
+          </Button>
+        )}
+        <a
+          href={task.issueUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="shrink-0 rounded p-1 text-stone-400 transition-colors hover:text-[#c35a2c]"
+          title="GitHub で見る"
+        >
+          <ExternalLink className="h-4 w-4" />
+        </a>
+      </div>
     </div>
   );
 }

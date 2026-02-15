@@ -2,15 +2,11 @@ name: Claude AI Agent
 
 on:
   issues:
-    types: [opened, edited]
-  issue_comment:
-    types: [created]
+    types: [labeled]
 
 jobs:
   claude-agent:
-    if: |
-      (github.event_name == 'issues' && contains(github.event.issue.labels.*.name, 'ai-task')) ||
-      (github.event_name == 'issue_comment' && contains(github.event.issue.labels.*.name, 'ai-task'))
+    if: github.event.label.name == 'ai-implement'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -46,6 +42,7 @@ jobs:
             for (const l of labels) {
               try { await github.rest.issues.createLabel({ owner, repo, ...l }); } catch {}
             }
+            try { await github.rest.issues.removeLabel({ owner, repo, issue_number, name: 'ai-implement' }); } catch {}
             try { await github.rest.issues.removeLabel({ owner, repo, issue_number, name: 'status:failed' }); } catch {}
             try { await github.rest.issues.removeLabel({ owner, repo, issue_number, name: 'status:review' }); } catch {}
             await github.rest.issues.addLabels({ owner, repo, issue_number, labels: ['status:in-progress'] });

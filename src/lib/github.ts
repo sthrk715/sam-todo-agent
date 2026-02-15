@@ -78,6 +78,18 @@ export async function fetchAllIssues(): Promise<Task[]> {
     });
 }
 
+export async function startImplementation(issueNumber: number): Promise<void> {
+  const octokit = getOctokit();
+  const { owner } = getConfig();
+
+  await octokit.rest.issues.addLabels({
+    owner,
+    repo: HUB_REPO,
+    issue_number: issueNumber,
+    labels: ["ai-implement"],
+  });
+}
+
 function parseTargetRepo(body: string): string | null {
   const match = body.match(/<!-- target-repo: (\S+) -->/);
   return match ? match[1] : null;
@@ -117,7 +129,7 @@ function mapIssueToTask(issue: any, repo: string): Task {
     title: cleanTitle,
     description: cleanBody,
     labels: labelNames.filter(
-      (l) => !l.startsWith("status:") && l !== "ai-task"
+      (l) => !l.startsWith("status:") && l !== "ai-task" && l !== "ai-implement"
     ),
     state: issue.state as "open" | "closed",
     status: deriveStatus(issue.state, labelNames),

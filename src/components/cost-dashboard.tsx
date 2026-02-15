@@ -61,7 +61,7 @@ export function CostDashboard() {
   const statusCounts = STATUS_SUMMARY.map((s) => ({
     ...s,
     count: tasks.filter((t) => t.status === s.key).length,
-  })).filter((s) => s.count > 0);
+  }));
 
   const chartData = useMemo<ChartData[]>(() => {
     if (tasks.length === 0) return [];
@@ -115,9 +115,7 @@ export function CostDashboard() {
           );
         })}
 
-        {statusCounts.length > 0 && (
-          <div className="h-4 w-px bg-stone-200" />
-        )}
+        <div className="h-4 w-px bg-stone-200" />
 
         <div className="flex items-center gap-1.5">
           <DollarSign className="h-3.5 w-3.5 text-[#c35a2c]" />

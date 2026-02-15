@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import type { Task, CreateTaskInput, Repo } from "@/types";
-import { createIssue, fetchAllIssues, fetchRepos } from "@/lib/github";
+import { createIssue, fetchAllIssues, fetchRepos, startImplementation } from "@/lib/github";
 
 interface TaskState {
   repos: Repo[];
@@ -14,6 +14,7 @@ interface TaskState {
   loadRepos: () => Promise<void>;
   setSelectedRepo: (repo: string) => void;
   addTask: (input: CreateTaskInput) => Promise<Task>;
+  startImpl: (issueNumber: number) => Promise<void>;
   syncTasks: () => Promise<void>;
   startPolling: () => void;
   stopPolling: () => void;
@@ -69,6 +70,23 @@ export const useTaskStore = create<TaskState>((set, get) => ({
       const message =
         err instanceof Error ? err.message : "タスクの作成に失敗しました";
       set({ error: message, loading: false });
+      throw err;
+    }
+  },
+
+  startImpl: async (issueNumber) => {
+    try {
+      await startImplementation(issueNumber);
+      // ローカル状態を即座に更新
+      set((state) => ({
+        tasks: state.tasks.map((t) =>
+          t.issueNumber === issueNumber ? { ...t, status: "in_progress" as const } : t
+        ),
+      }));
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "実装の開始に失敗しました";
+      set({ error: message });
       throw err;
     }
   },
