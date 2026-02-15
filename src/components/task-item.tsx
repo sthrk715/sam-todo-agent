@@ -10,9 +10,19 @@ import {
   CircleX,
   DollarSign,
   Play,
+  Trash2,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { useTaskStore } from "@/store/task-store";
 import { toast } from "sonner";
 import type { Task, TaskStatus } from "@/types";
@@ -62,8 +72,10 @@ export function TaskItem({ task }: TaskItemProps) {
   const StatusIcon = config.icon;
   const isDone = task.status === "done";
   const isQueued = task.status === "queued";
-  const { startImpl } = useTaskStore();
+  const { startImpl, deleteTask } = useTaskStore();
   const [starting, setStarting] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [dialogOpen, setDialogOpen] = useState(false);
 
   const handleStart = async () => {
     setStarting(true);
@@ -74,6 +86,19 @@ export function TaskItem({ task }: TaskItemProps) {
       toast.error("実装の開始に失敗しました");
     } finally {
       setStarting(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    setDeleting(true);
+    try {
+      await deleteTask(task.issueNumber);
+      toast.success(`#${task.issueNumber} を削除しました`);
+      setDialogOpen(false);
+    } catch {
+      toast.error("タスクの削除に失敗しました");
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -175,6 +200,45 @@ export function TaskItem({ task }: TaskItemProps) {
         >
           <ExternalLink className="h-4 w-4" />
         </a>
+        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+          <DialogTrigger asChild>
+            <button
+              className="shrink-0 rounded p-1 text-stone-400 transition-colors hover:text-red-600"
+              title="削除"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>タスクの削除</DialogTitle>
+              <DialogDescription>
+                本当に「{task.title}」を削除しますか？
+                この操作は取り消せません。GitHubのIssueもクローズされます。
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setDialogOpen(false)}
+                disabled={deleting}
+                className="border-stone-200 text-stone-700 hover:bg-stone-50"
+              >
+                キャンセル
+              </Button>
+              <Button
+                onClick={handleDelete}
+                disabled={deleting}
+                className="bg-red-600 hover:bg-red-700 text-white"
+              >
+                {deleting ? (
+                  <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                ) : null}
+                削除
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );

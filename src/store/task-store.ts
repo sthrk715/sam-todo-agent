@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import type { Task, CreateTaskInput, Repo, TaskStatus } from "@/types";
-import { createIssue, fetchAllIssues, fetchRepos, startImplementation } from "@/lib/github";
+import { createIssue, fetchAllIssues, fetchRepos, startImplementation, deleteIssue } from "@/lib/github";
 
 // ステータスの進行順序（syncでの巻き戻りを防止）
 const STATUS_ORDER: Record<TaskStatus, number> = {
@@ -24,6 +24,7 @@ interface TaskState {
   setSelectedRepo: (repo: string) => void;
   addTask: (input: CreateTaskInput) => Promise<Task>;
   startImpl: (issueNumber: number) => Promise<void>;
+  deleteTask: (issueNumber: number) => Promise<void>;
   syncTasks: () => Promise<void>;
   startPolling: () => void;
   stopPolling: () => void;
@@ -95,6 +96,21 @@ export const useTaskStore = create<TaskState>((set, get) => ({
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "実装の開始に失敗しました";
+      set({ error: message });
+      throw err;
+    }
+  },
+
+  deleteTask: async (issueNumber) => {
+    try {
+      await deleteIssue(issueNumber);
+      // ローカル状態から即座に削除
+      set((state) => ({
+        tasks: state.tasks.filter((t) => t.issueNumber !== issueNumber),
+      }));
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "タスクの削除に失敗しました";
       set({ error: message });
       throw err;
     }
