@@ -12,6 +12,8 @@ export interface Task {
   issueUrl: string;
   repo: string;
   createdAt: string;
+  updatedAt?: string;
+  closedAt?: string;
 }
 
 export interface CreateTaskInput {

@@ -19,6 +19,8 @@ import {
   GitPullRequest,
   CircleCheck,
   CircleX,
+  TrendingUp,
+  Timer,
 } from "lucide-react";
 import { useTaskStore } from "@/store/task-store";
 import type { TaskStatus } from "@/types";
@@ -50,6 +52,7 @@ interface ChartData {
   date: string;
   cost: number;
   count: number;
+  successRate: number;
 }
 
 export function CostDashboard() {
@@ -63,19 +66,55 @@ export function CostDashboard() {
     count: tasks.filter((t) => t.status === s.key).length,
   }));
 
+  // Success rate calculation
+  const completedTasks = tasks.filter(
+    (t) => t.status === "done" || t.status === "failed"
+  );
+  const successfulTasks = tasks.filter((t) => t.status === "done");
+  const successRate =
+    completedTasks.length > 0
+      ? (successfulTasks.length / completedTasks.length) * 100
+      : 0;
+
+  // Average execution time calculation (in hours)
+  const avgExecutionTime = useMemo(() => {
+    const tasksWithTime = tasks.filter(
+      (t) => (t.status === "done" || t.status === "failed") && t.closedAt
+    );
+    if (tasksWithTime.length === 0) return 0;
+
+    const totalTime = tasksWithTime.reduce((sum, task) => {
+      const start = new Date(task.createdAt).getTime();
+      const end = new Date(task.closedAt!).getTime();
+      return sum + (end - start);
+    }, 0);
+
+    return totalTime / tasksWithTime.length / (1000 * 60 * 60); // Convert to hours
+  }, [tasks]);
+
   const chartData = useMemo<ChartData[]>(() => {
     if (tasks.length === 0) return [];
 
-    const byDate = new Map<string, { cost: number; count: number }>();
+    const byDate = new Map<
+      string,
+      { cost: number; count: number; done: number; failed: number }
+    >();
 
     for (const task of tasks) {
       const date = new Date(task.createdAt).toLocaleDateString("ja-JP", {
         month: "numeric",
         day: "numeric",
       });
-      const existing = byDate.get(date) || { cost: 0, count: 0 };
+      const existing = byDate.get(date) || {
+        cost: 0,
+        count: 0,
+        done: 0,
+        failed: 0,
+      };
       existing.cost += task.cost ?? 0;
       existing.count += 1;
+      if (task.status === "done") existing.done += 1;
+      if (task.status === "failed") existing.failed += 1;
       byDate.set(date, existing);
     }
 
@@ -85,11 +124,16 @@ export function CostDashboard() {
         const [bm, bd] = b[0].split("/").map(Number);
         return am !== bm ? am - bm : ad - bd;
       })
-      .map(([date, data]) => ({
-        date,
-        cost: Number(data.cost.toFixed(2)),
-        count: data.count,
-      }));
+      .map(([date, data]) => {
+        const completed = data.done + data.failed;
+        const successRate = completed > 0 ? (data.done / completed) * 100 : 0;
+        return {
+          date,
+          cost: Number(data.cost.toFixed(2)),
+          count: data.count,
+          successRate: Number(successRate.toFixed(0)),
+        };
+      });
   }, [tasks]);
 
   return (
@@ -137,6 +181,50 @@ export function CostDashboard() {
             回
           </span>
         </div>
+
+        {completedTasks.length > 0 && (
+          <>
+            <div className="h-4 w-px bg-stone-200" />
+
+            <div className="flex items-center gap-1.5">
+              <TrendingUp
+                className={`h-3.5 w-3.5 ${
+                  successRate >= 80
+                    ? "text-emerald-500"
+                    : successRate >= 50
+                      ? "text-amber-500"
+                      : "text-red-500"
+                }`}
+              />
+              <span className="text-xs text-stone-500">
+                成功率{" "}
+                <span
+                  className={`font-mono font-semibold ${
+                    successRate >= 80
+                      ? "text-emerald-500"
+                      : successRate >= 50
+                        ? "text-amber-500"
+                        : "text-red-500"
+                  }`}
+                >
+                  {successRate.toFixed(0)}%
+                </span>
+              </span>
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              <Timer className="h-3.5 w-3.5 text-purple-500" />
+              <span className="text-xs text-stone-500">
+                平均{" "}
+                <span className="font-mono font-semibold text-purple-500">
+                  {avgExecutionTime < 1
+                    ? `${Math.round(avgExecutionTime * 60)}分`
+                    : `${avgExecutionTime.toFixed(1)}時間`}
+                </span>
+              </span>
+            </div>
+          </>
+        )}
       </div>
 
       {/* Chart */}
@@ -150,6 +238,10 @@ export function CostDashboard() {
             <span className="flex items-center gap-1.5">
               <span className="inline-block h-0.5 w-4 bg-[#6b83b0]" />
               実行回数
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="inline-block h-0.5 w-4 bg-emerald-500" />
+              成功率 (%)
             </span>
           </div>
           <ResponsiveContainer width="100%" height={200}>
@@ -180,6 +272,15 @@ export function CostDashboard() {
                 axisLine={false}
                 tickLine={false}
                 allowDecimals={false}
+              />
+              <YAxis
+                yAxisId="successRate"
+                orientation="right"
+                tick={{ fill: "#10b981", fontSize: 11 }}
+                axisLine={false}
+                tickLine={false}
+                domain={[0, 100]}
+                tickFormatter={(v: number) => `${v}%`}
               />
               <Tooltip
                 contentStyle={{
