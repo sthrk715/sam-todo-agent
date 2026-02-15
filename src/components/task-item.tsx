@@ -12,6 +12,8 @@ import {
   Play,
   Trash2,
   RotateCcw,
+  ChevronDown,
+  FileCode,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -79,6 +81,8 @@ export function TaskItem({ task }: TaskItemProps) {
   const [deleting, setDeleting] = useState(false);
   const [retrying, setRetrying] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  const hasImpl = !!(task.prUrl || task.summary || task.changedFiles?.length);
 
   const handleStart = async () => {
     setStarting(true);
@@ -187,7 +191,50 @@ export function TaskItem({ task }: TaskItemProps) {
           <span className="text-[10px] text-stone-400">
             {new Date(task.createdAt).toLocaleDateString("ja-JP")}
           </span>
+          {hasImpl && (
+            <button
+              onClick={() => setExpanded(!expanded)}
+              className="flex items-center gap-0.5 text-[10px] text-blue-500 hover:text-blue-700 transition-colors"
+            >
+              <FileCode className="h-3 w-3" />
+              実装詳細
+              <ChevronDown className={`h-3 w-3 transition-transform ${expanded ? "rotate-180" : ""}`} />
+            </button>
+          )}
         </div>
+
+        {expanded && hasImpl && (
+          <div className="mt-2 rounded-md border border-stone-100 bg-stone-50/80 p-2.5 text-xs space-y-1.5">
+            {task.prUrl && (
+              <div className="flex items-center gap-1.5">
+                <GitPullRequest className="h-3 w-3 text-blue-500 shrink-0" />
+                <a
+                  href={task.prUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-600 hover:underline truncate"
+                >
+                  {task.prUrl.replace(/.*\/pull\//, "PR #")}
+                </a>
+              </div>
+            )}
+            {task.summary && (
+              <div className="font-mono text-[10px] text-stone-500">
+                {task.summary}
+              </div>
+            )}
+            {task.changedFiles && task.changedFiles.length > 0 && (
+              <div className="space-y-0.5">
+                {task.changedFiles.map((file) => (
+                  <div key={file} className="flex items-center gap-1 font-mono text-[10px] text-stone-500">
+                    <span className="text-stone-300">├</span>
+                    {file}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="flex shrink-0 items-center gap-1">

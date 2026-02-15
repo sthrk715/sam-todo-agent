@@ -168,6 +168,21 @@ function parseCost(body: string): number | null {
   return match ? parseFloat(match[1]) : null;
 }
 
+function parsePrUrl(body: string): string | undefined {
+  const match = body.match(/<!-- pr-url: (.+?) -->/);
+  return match ? match[1] : undefined;
+}
+
+function parseSummary(body: string): string | undefined {
+  const match = body.match(/<!-- impl-summary: (.+?) -->/);
+  return match ? match[1] : undefined;
+}
+
+function parseChangedFiles(body: string): string[] | undefined {
+  const match = body.match(/<!-- impl-files: (.+?) -->/);
+  return match ? match[1].split(",").filter(Boolean) : undefined;
+}
+
 function deriveStatus(state: string, labels: string[]): TaskStatus {
   if (state === "closed") return "done";
   if (labels.includes("status:failed")) return "failed";
@@ -184,6 +199,9 @@ function mapIssueToTask(issue: any, repo: string): Task {
   const cleanBody = body
     .replace(/<!-- target-repo: \S+ -->\n?\n?/, "")
     .replace(/<!-- api-cost: [\d.]+ -->\n?/, "")
+    .replace(/<!-- pr-url: .+? -->\n?/, "")
+    .replace(/<!-- impl-summary: .+? -->\n?/, "")
+    .replace(/<!-- impl-files: .+? -->\n?/, "")
     .trim();
   const cleanTitle = title.replace(/^\[\S+\]\s*/, "");
 
@@ -208,5 +226,8 @@ function mapIssueToTask(issue: any, repo: string): Task {
     createdAt: issue.created_at,
     updatedAt: issue.updated_at,
     closedAt: issue.closed_at,
+    prUrl: parsePrUrl(body),
+    summary: parseSummary(body),
+    changedFiles: parseChangedFiles(body),
   };
 }

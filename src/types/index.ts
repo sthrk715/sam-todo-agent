@@ -14,6 +14,9 @@ export interface Task {
   createdAt: string;
   updatedAt?: string;
   closedAt?: string;
+  prUrl?: string;
+  summary?: string;
+  changedFiles?: string[];
 }
 
 export interface CreateTaskInput {

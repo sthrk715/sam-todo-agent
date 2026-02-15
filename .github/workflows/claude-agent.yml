@@ -26,7 +26,6 @@ jobs:
           echo "Target repository: $TARGET"
 
       # 2. ステータスラベルを確保 & in-progress に設定
-      #    GITHUB_TOKEN使用: PAT_TOKENだとラベル変更が再トリガーされる
       - name: Set status in-progress
         uses: actions/github-script@v7
         with:
@@ -141,12 +140,9 @@ jobs:
         env:
           ANTHROPIC_ADMIN_KEY: ${{ secrets.ANTHROPIC_ADMIN_KEY }}
         run: |
-          # 実行終了時刻（1分のバッファ付き）
           END_TIME=$(date -u -d "+2 minutes" +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || date -u -v+2M +"%Y-%m-%dT%H:%M:%SZ")
-
           echo "Cost query: ${CLAUDE_START_TIME} to ${END_TIME}"
 
-          # Admin APIでコストレポート取得（1日バケット、description別）
           COST_RESPONSE=$(curl -s \
             "https://api.anthropic.com/v1/organizations/cost_report?starting_at=${CLAUDE_START_TIME}&ending_at=${END_TIME}&bucket_width=1d&group_by[]=description" \
             -H "x-api-key: $ANTHROPIC_ADMIN_KEY" \
@@ -156,7 +152,6 @@ jobs:
           echo "$COST_RESPONSE" | jq . 2>/dev/null || echo "$COST_RESPONSE"
           echo "::endgroup::"
 
-          # 全コスト項目を合算（amount はセント単位 → ドルに変換）
           TOTAL_CENTS=$(echo "$COST_RESPONSE" | jq -r '
             [.data[]?.results[]?.amount // "0" | tonumber] | add // 0
           ' 2>/dev/null || echo "0")
@@ -170,7 +165,7 @@ jobs:
             echo "::warning::Could not retrieve cost from Admin API"
           fi
 
-      # 7. コミット & プッシュ
+      # 7. コミット & プッシュ + 変更サマリ取得
       - name: Commit and push
         id: commit
         run: |
@@ -183,10 +178,17 @@ jobs:
             exit 0
           fi
           git commit -m "feat: implement sam-todo-agent#${ISSUE_NUMBER}"
+
+          # 変更サマリを取得（GITHUB_ENVに保存）
+          DIFF_STAT=$(git diff --stat HEAD~1 HEAD | tail -1)
+          CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD | tr '\n' ',')
+          echo "DIFF_STAT=${DIFF_STAT}" >> "$GITHUB_ENV"
+          echo "CHANGED_FILES=${CHANGED_FILES%,}" >> "$GITHUB_ENV"
+
           git push --force-with-lease origin "$BRANCH"
           echo "has_changes=true" >> "$GITHUB_OUTPUT"
 
-      # 8. 対象リポジトリにPR作成
+      # 8. PR作成
       - name: Create PR
         if: steps.commit.outputs.has_changes == 'true'
         id: pr
@@ -198,29 +200,51 @@ jobs:
           CLEAN_TITLE=$(echo "$ISSUE_TITLE" | sed 's/^\[.*\] //')
           OWNER="${{ github.repository_owner }}"
 
-          # 既存PRがあればURLを取得、なければ新規作成
+          # 既存PRチェック
           EXISTING_PR=$(gh pr list --repo "${OWNER}/${TARGET_REPO}" --head "$BRANCH" --json url --jq '.[0].url' 2>/dev/null || echo "")
           if [ -n "$EXISTING_PR" ]; then
             echo "PR already exists: $EXISTING_PR"
-            PR_URL="$EXISTING_PR"
-          else
-            PR_URL=$(gh pr create \
-              --repo "${OWNER}/${TARGET_REPO}" \
-              --head "$BRANCH" \
-              --base main \
-              --title "${CLEAN_TITLE}" \
-              --body "$(cat <<'PRBODY'
-          Implements ${{ github.repository_owner }}/sam-todo-agent#${{ github.event.issue.number }}
-
-          Closes ${{ github.repository_owner }}/sam-todo-agent#${{ github.event.issue.number }}
-          PRBODY
-          )" 2>&1) || echo "::warning::PR creation failed: $PR_URL"
+            echo "pr_url=${EXISTING_PR}" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
+
+          # PR本文を変数で構築（heredocの問題を回避）
+          PR_BODY="Implements ${OWNER}/sam-todo-agent#${ISSUE_NUMBER}
+
+          ${DIFF_STAT}
+
+          Closes ${OWNER}/sam-todo-agent#${ISSUE_NUMBER}"
+
+          echo "::group::Creating PR"
+          echo "Repo: ${OWNER}/${TARGET_REPO}"
+          echo "Head: $BRANCH"
+          echo "Base: main"
+          echo "Title: ${CLEAN_TITLE}"
+          echo "::endgroup::"
+
+          PR_URL=$(gh pr create \
+            --repo "${OWNER}/${TARGET_REPO}" \
+            --head "$BRANCH" \
+            --base main \
+            --title "${CLEAN_TITLE}" \
+            --body "$PR_BODY" 2>&1)
+          PR_EXIT=$?
+
+          if [ $PR_EXIT -ne 0 ]; then
+            echo "::error::PR creation failed (exit $PR_EXIT): $PR_URL"
+            # gh api フォールバック
+            PR_URL=$(gh api "repos/${OWNER}/${TARGET_REPO}/pulls" \
+              -f head="$BRANCH" -f base="main" \
+              -f title="${CLEAN_TITLE}" -f body="$PR_BODY" \
+              --jq '.html_url' 2>&1) || echo "::error::Fallback also failed: $PR_URL"
+          fi
+
+          echo "PR URL: $PR_URL"
           echo "pr_url=${PR_URL}" >> "$GITHUB_OUTPUT"
 
-      # 9. Issueにコスト情報を埋め込み
-      - name: Record cost in issue body
-        if: env.API_COST != 'unknown'
+      # 9. 実装詳細をIssue bodyに記録（コスト・PR URL・変更サマリ）
+      - name: Record implementation details
+        if: steps.commit.outputs.has_changes == 'true'
         uses: actions/github-script@v7
         with:
           github-token: ${{ github.token }}
@@ -228,15 +252,32 @@ jobs:
             const owner = context.repo.owner;
             const repo = 'sam-todo-agent';
             const issue_number = ${{ github.event.issue.number }};
-            const cost = process.env.API_COST;
+            const cost = process.env.API_COST || '';
+            const prUrl = '${{ steps.pr.outputs.pr_url }}' || '';
+            const diffStat = process.env.DIFF_STAT || '';
+            const changedFiles = process.env.CHANGED_FILES || '';
+
             const { data: issue } = await github.rest.issues.get({ owner, repo, issue_number });
             let body = issue.body || '';
-            // 既存のコストメタデータを更新 or 追加
-            if (body.includes('<!-- api-cost:')) {
-              body = body.replace(/<!-- api-cost: [\d.]+ -->/, `<!-- api-cost: ${cost} -->`);
-            } else {
-              body = `<!-- api-cost: ${cost} -->\n${body}`;
+
+            // メタデータを更新 or 追加
+            const meta = {
+              'api-cost': cost,
+              'pr-url': prUrl,
+              'impl-summary': diffStat,
+              'impl-files': changedFiles,
+            };
+            for (const [key, value] of Object.entries(meta)) {
+              if (!value || value === 'unknown') continue;
+              const regex = new RegExp(`<!-- ${key}: .+? -->`);
+              const tag = `<!-- ${key}: ${value} -->`;
+              if (body.match(regex)) {
+                body = body.replace(regex, tag);
+              } else {
+                body = `${tag}\n${body}`;
+              }
             }
+
             await github.rest.issues.update({ owner, repo, issue_number, body });
 
       # 10. ステータスラベルを更新
@@ -276,11 +317,13 @@ jobs:
             const prUrl = '${{ steps.pr.outputs.pr_url }}' || '';
             const cost = process.env.API_COST || 'unknown';
             const costText = cost !== 'unknown' ? `\nAPI コスト: $${cost}` : '';
+            const diffStat = process.env.DIFF_STAT || '';
+            const summaryText = diffStat ? `\n変更: ${diffStat}` : '';
             let message;
             if (hasChanges && prUrl) {
-              message = `🤖 実装完了！PRを作成しました。\n\n対象リポジトリ: \`${targetRepo}\`\nPR: ${prUrl}${costText}`;
+              message = `🤖 実装完了！PRを作成しました。\n\n対象リポジトリ: \`${targetRepo}\`\nPR: ${prUrl}${summaryText}${costText}`;
             } else if (hasChanges) {
-              message = `🤖 実装完了！\n\n対象リポジトリ: \`${targetRepo}\`${costText}`;
+              message = `🤖 実装完了！\n\n対象リポジトリ: \`${targetRepo}\`${summaryText}${costText}`;
             } else {
               message = `🤖 変更対象が見つかりませんでした。Issueの内容をより具体的に記述してください。${costText}`;
             }
