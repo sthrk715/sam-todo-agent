@@ -21,15 +21,10 @@ jobs:
       - name: Install Claude Code
         run: npm install -g @anthropic-ai/claude-code
 
-      - name: Enrich issue with X content
+      - name: Enrich issue description
         env:
           ANTHROPIC_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
           GH_TOKEN: ${{ github.token }}
-          X_BEARER_TOKEN: ${{ secrets.X_BEARER_TOKEN }}
-          X_API_KEY: ${{ secrets.X_API_KEY }}
-          X_API_SECRET: ${{ secrets.X_API_SECRET }}
-          X_ACCESS_TOKEN: ${{ secrets.X_ACCESS_TOKEN }}
-          X_ACCESS_SECRET: ${{ secrets.X_ACCESS_SECRET }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
           ISSUE_TITLE: ${{ github.event.issue.title }}
           ISSUE_BODY: ${{ github.event.issue.body }}
@@ -37,46 +32,29 @@ jobs:
         run: |
           CLEAN_TITLE=$(echo "$ISSUE_TITLE" | sed 's/^\[.*\] //')
 
-          PROMPT="あなたはリサーチエージェントです。
-          GitHub Issueのタイトルに基づいてX (Twitter) 上の関連投稿や記事を調査し、
-          Issue本文を自動生成・更新してください。
+          PROMPT="あなたはシニアソフトウェアエンジニア兼テックリサーチャーです。
+          GitHub Issueのタイトルに基づいて、実装に必要な情報をリサーチし、
+          充実したIssue本文を自動生成してください。
 
           ## 対象Issue
           - Issue番号: #${ISSUE_NUMBER}
           - タイトル: ${CLEAN_TITLE}
           - 現在の本文は環境変数 ISSUE_BODY に格納されています（echo \"\$ISSUE_BODY\" で確認可能）
 
-          ## ユーザープロファイル（検索の方向性に使ってください）
+          ## ユーザーの技術スタック
           - Next.js / TypeScript でWebアプリ開発
-          - AI/LLM エージェント、自動化パイプライン構築に関心
+          - AI/LLM エージェント、自動化パイプライン構築
           - GitHub Actions + Claude Code による自律実装
           - GCP (Cloud Run) でのデプロイ運用
-          - 関心分野: AI, Web開発, DevOps, 自動化, API連携
-
-          ## X API の使い方
-          Bearer Tokenが環境変数 X_BEARER_TOKEN に設定されています。
-
-          ### ツイート検索
-          curl -s 'https://api.twitter.com/2/tweets/search/recent?query=KEYWORDS&max_results=10&tweet.fields=author_id,created_at,text,public_metrics&expansions=author_id&user.fields=username,name' \\
-            -H \"Authorization: Bearer \$X_BEARER_TOKEN\"
-
-          検索のコツ:
-          - タイトルからキーワードを複数パターン抽出して検索
-          - 日本語キーワードと英語キーワードの両方で検索
-          - 結果が少なければキーワードを広げて再検索
-          - lang:ja で日本語投稿を優先的に取得
-
-          ### 403エラーが返る場合
-          Free planではsearch APIが使えません。その場合は:
-          1. あなたの知識をベースに関連技術の情報をまとめる
-          2. 「X API検索は未対応プラン」と記載する
+          - Zustand, Tailwind CSS, shadcn/ui
 
           ## 指示
-          1. Issueタイトルから実装テーマを理解する
-          2. X APIで関連投稿を検索し、有益な情報を収集する
-          3. 収集した情報を元に、以下のフォーマットでIssue本文を生成する
-          4. 既存の本文にあるメタデータ（<!-- target-repo: ... --> 等）は必ず先頭に保持する
-          5. gh コマンドでIssue本文を更新する:
+          1. Issueタイトルから実装テーマを正確に理解する
+          2. あなたの技術知識を活用し、最新のベストプラクティスや関連技術を調査する
+          3. WebFetchが使える場合は、関連する公式ドキュメントやブログ記事を参照する
+          4. 以下のフォーマットでIssue本文を生成する
+          5. 既存の本文にあるメタデータ（<!-- target-repo: ... --> 等）は必ず先頭に保持する
+          6. gh コマンドでIssue本文を更新する:
              gh issue edit ${ISSUE_NUMBER} --repo ${GITHUB_OWNER}/sam-todo-agent --body \"\$GENERATED_BODY\"
 
           ## 生成するIssue本文のフォーマット
@@ -85,30 +63,31 @@ jobs:
           （既存メタデータをここに保持）
 
           ## 概要
-          Issueタイトルから推測される実装内容の説明（2-3文）
+          実装内容の説明（2-3文で簡潔に）
 
-          ## X上の関連情報
-          | 投稿者 | 内容の要約 | 参考ポイント |
-          |--------|-----------|-------------|
-          | [@user](url) | 投稿要約 | このIssueに活かせる点 |
-
-          （検索できなかった場合は理由を記載）
+          ## 背景・モチベーション
+          なぜこの機能/修正が必要か（1-2文）
 
           ## 実装要件
-          - [ ] 要件1（X投稿を参考にした具体的要件）
+          - [ ] 要件1（具体的で実装可能な粒度）
           - [ ] 要件2
           - [ ] 要件3
 
-          ## 技術メモ
-          - 推奨ライブラリ/API
+          ## 技術的アプローチ
+          - 推奨する実装方針
+          - 使用すべきライブラリ/API
           - 注意点やベストプラクティス
-          - 参考リンク
+
+          ## 参考情報
+          - 関連する公式ドキュメントURL
+          - 類似の実装パターンや参考記事
           \`\`\`
 
           ## 重要
           - 日本語で出力してください
           - Issue本文の更新には必ず gh issue edit を使ってください
-          - 質問せず自分で判断して完了させてください"
+          - 質問せず自分で判断して完了させてください
+          - 実装者（AIエージェント）が迷わず着手できる具体性を持たせてください"
 
           set +e
           claude -p --dangerously-skip-permissions --output-format json --max-turns 15 "$PROMPT" \
@@ -130,5 +109,5 @@ jobs:
               owner: context.repo.owner,
               repo: 'sam-todo-agent',
               issue_number: ${{ github.event.issue.number }},
-              body: '🔍 X上の関連情報を調査し、Issue説明を自動生成しました。内容を確認してください。'
+              body: '🔍 技術リサーチに基づきIssue説明を自動生成しました。内容を確認してください。'
             });
